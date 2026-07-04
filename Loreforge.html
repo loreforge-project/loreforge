@@ -69,13 +69,30 @@
   .tw-empty{display:inline-block; width:16px;}
   .cat-tw{display:inline-block; width:14px; text-align:center; font-size:11px; color:var(--muted);}
   .cat-title:hover .cat-tw{color:var(--text);}
-  .cat-add{background:transparent; border:none; color:var(--accent); font-size:16px; line-height:1;
-    width:20px; height:20px; border-radius:4px;}
+  .cat-btns{display:flex; align-items:center; gap:1px;}
+  .cat-add{background:transparent; border:none; color:var(--accent); font-size:15px; line-height:1;
+    width:20px; height:20px; border-radius:4px; cursor:pointer;}
   .cat-add:hover{background:var(--line); color:#fff;}
   .item{display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:6px;
     cursor:pointer; font-size:13px;}
   .item:hover{background:var(--panel);}
   .item.sel{background:var(--accent); color:#0b0e18;}
+  .item.dragging{opacity:0.4;}
+  .item.dropbefore{box-shadow:inset 0 2px 0 0 var(--accent);}
+  .item.dropafter{box-shadow:inset 0 -2px 0 0 var(--accent);}
+  /* 폴더 행 */
+  .folderrow{display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:6px;
+    font-size:12.5px; color:var(--text); cursor:default;}
+  .folderrow:hover{background:var(--panel);}
+  .folderrow .fico{font-size:12px; flex-shrink:0;}
+  .folderrow .fnm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600;}
+  .folderrow .fcount{color:var(--muted); font-size:11px; flex-shrink:0;}
+  .folderrow .facts{display:none; gap:1px; flex-shrink:0;}
+  .folderrow:hover .facts{display:flex;}
+  .folderrow .fbtn{background:transparent; border:none; color:var(--muted); cursor:pointer;
+    font-size:12px; padding:1px 4px; border-radius:4px; line-height:1;}
+  .folderrow .fbtn:hover{background:var(--line); color:#fff;}
+  .folderrow.dropinto{outline:2px dashed var(--accent); outline-offset:-2px; background:var(--panel);}
   .dot{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
   .item .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .empty{color:var(--muted); font-size:12px; padding:4px 9px; font-style:italic;}
@@ -317,7 +334,7 @@
 <body>
 
 <div id="topbar">
-  <h1>Lore<span>forge</span> <em id="verTag">v1.0.0</em></h1>
+  <h1>Lore<span>forge</span> <em id="verTag">v1.1.0</em></h1>
   <input id="worldTitle" value="이름 없는 세계" title="세계관 제목" data-i18n-title="세계관 제목">
   <div class="tabs">
     <button class="tab active" data-view="map" data-i18n="지도">지도</button>
@@ -613,7 +630,7 @@ function blankMap(name,parent){
 }
 function blankWorld(){
   const m=blankMap();
-  return {meta:{title:t("이름 없는 세계")}, maps:[m], currentMap:m.id, places:[], entities:[], events:[], links:[], graphPos:{}};
+  return {meta:{title:t("이름 없는 세계")}, maps:[m], currentMap:m.id, places:[], entities:[], events:[], links:[], folders:[], graphPos:{}};
 }
 function curMap(){ return W.maps.find(m=>m.id===W.currentMap) || W.maps[0]; }
 /* 구버전(단일 W.map) → 다중 지도 구조로 이관 + 무결성 보정 */
@@ -629,10 +646,39 @@ function migrateMaps(){
   const first=W.maps[0].id;
   W.places.forEach(p=>{ if(!p.mapId) p.mapId=first; });
   W.maps.forEach(m=>{ if(!m.mapW) m.mapW=4000; if(!m.mapH) m.mapH=3000; });   // 지도 크기 조절 기능(구버전 파일 보정)
+  migrateFolders();   // 폴더 배열 보장 + 사이드바 정렬(sidx)·folder 참조 무결성 보정
   delete W.map;
   ensureSubMaps();     // 모든 면 영역에 하위 지도 보장
   // 영역-하위지도 이름 동기화(기존 파일 정규화)
   W.maps.forEach(m=>{ if(m.parent){ const a=W.places.find(p=>p.id===m.parent); if(a) m.name=a.name||"영역"; } });
+}
+/* 폴더/사이드바 정렬 마이그레이션.
+   - W.folders 배열 보장
+   - 모든 항목에 sidx(사이드바 정렬 인덱스) 부여(기존 순서 유지, 없는 것만 뒤에 채움)
+   - 존재하지 않거나 분류가 안 맞는 folder 참조는 제거(항목이 엉뚱한 폴더에 남지 않게)
+   - 폴더에 forder(폴더끼리의 순서) 부여
+   ※ 사건(event)의 order 필드는 연표 수동정렬 전용이므로 건드리지 않는다(그래서 사이드바용은 sidx로 분리). */
+function migrateFolders(){
+  if(!Array.isArray(W.folders)) W.folders=[];
+  // 항목 sidx 부여(분류별)
+  CAT_KEYS.forEach(cat=>{
+    const list=catRefs(cat);
+    let next=list.reduce((m,x)=> typeof x.sidx==="number"?Math.max(m,x.sidx+1):m, 0);
+    list.forEach(x=>{ if(typeof x.sidx!=="number") x.sidx=next++; });
+  });
+  // folder 참조 무결성: 없는 폴더/분류 불일치는 제거
+  const fcat={}; W.folders.forEach(f=>{ fcat[f.id]=f.cat; });
+  W.places.forEach(x=>{   if(x.folder && fcat[x.folder]!=="place") delete x.folder; });
+  W.events.forEach(x=>{   if(x.folder && fcat[x.folder]!=="event") delete x.folder; });
+  W.entities.forEach(x=>{ if(x.folder && fcat[x.folder]!==x.cat)   delete x.folder; });
+  // 폴더 forder 부여(분류별)
+  CAT_KEYS.forEach(cat=>{
+    let next=0;
+    W.folders.filter(f=>f.cat===cat).forEach(f=>{
+      if(typeof f.forder!=="number") f.forder=next;
+      next=Math.max(next,(f.forder??0)+1);
+    });
+  });
 }
 function uid(){ return Math.random().toString(36).slice(2,9); }
 
@@ -653,6 +699,14 @@ function findItem(id){
 }
 function itemName(id){ const i=findItem(id); return i?i.ref.name:"?"; }
 function itemCat(id){ const i=findItem(id); return i?i.cat:"concept"; }
+/* 한 분류(cat)에 속한 실제 데이터 객체(ref) 배열. place→places, event→events, 그 외→entities 필터.
+   폴더·사이드바 정렬(sidx)이 원본 객체를 직접 수정해야 하므로 복사본(allItems)이 아닌 ref를 돌려준다. */
+function catRefs(cat){
+  if(cat==="place") return W.places;
+  if(cat==="event") return W.events;
+  return W.entities.filter(e=>e.cat===cat);
+}
+const CAT_KEYS=["place","person","faction","event","item","concept"];
 
 /* ============ 좌측 목록 ============ */
 let collapsedCats=new Set();   // 접힌 카테고리 key
@@ -661,6 +715,120 @@ function toggleCat(key){ collapsedCats.has(key)?collapsedCats.delete(key):collap
 function toggleNode(id){ expandedNodes.has(id)?expandedNodes.delete(id):expandedNodes.add(id); renderLeft(); }
 function treeParentId(id){ const it=findItem(id); return it?treeParent({...it.ref,cat:it.cat}):null; }
 function expandAncestors(id){ let cur=treeParentId(id),g=0; while(cur&&g++<60){ expandedNodes.add(cur); cur=treeParentId(cur); } }
+
+/* ============ 폴더 & 사이드바 드래그 정렬 ============
+   설계 원칙:
+   - 폴더는 '분류(장소/인물/…)' 바로 아래에만 만들 수 있고, 그 분류의 항목만 담는다(섞이지 않음).
+   - 폴더에 담기는 건 '루트 항목'(계층상 상위가 없는 항목)뿐이다. 하위(자식) 항목은 언제나 부모 밑에 붙어 나온다.
+   - 순서는 항목별 sidx(그룹 안에서만 비교), 폴더끼리는 forder로 관리한다.
+   - 드롭할 때 같은 '그룹'(같은 폴더의 루트끼리, 또는 같은 부모의 자식끼리) 안에서 sidx를 0..n으로 다시 매겨 안정적으로 유지한다. */
+let collapsedFolders=new Set();   // 접힌 폴더 id
+let _dragId=null;                 // 드래그 중인 항목 id
+
+function isRootId(id){ return !treeParentId(id); }
+/* 특정 분류에서 (폴더 fol에 속한) 루트 항목 ref 목록. fol=null 이면 폴더에 안 든 루트 */
+function rootGroupRefs(cat, fol){
+  return catRefs(cat).filter(r=>isRootId(r.id) && ((r.folder||null)===(fol||null)));
+}
+/* 특정 부모(parentId)의 자식 ref 목록 (같은 분류) */
+function childGroupRefs(cat, parentId){
+  return catRefs(cat).filter(r=>treeParentId(r.id)===parentId);
+}
+function nextSidx(cat){ return catRefs(cat).reduce((m,x)=> typeof x.sidx==="number"?Math.max(m,x.sidx+1):m, 0); }
+
+/* 그룹(ref 배열) 안에서 ref를 targetId 앞/뒤로 재배치하고 sidx를 0..n으로 다시 부여 */
+function reinsertRef(group, ref, targetId, before){
+  const arr=group.filter(x=>x.id!==ref.id);
+  let i=arr.findIndex(x=>x.id===targetId);
+  if(i<0) i=arr.length; else if(!before) i+=1;
+  arr.splice(i,0,ref);
+  arr.forEach((x,n)=>{ x.sidx=n; });
+}
+/* 항목 위에 드롭: 같은 그룹 안에서 순서 변경. 루트끼리면 target의 폴더로 흡수, 자식끼리는 같은 부모여야 함 */
+function applyDrop(targetId, before){
+  const d=findItem(_dragId), tt=findItem(targetId);
+  if(!d||!tt||_dragId===targetId||d.cat!==tt.cat) return;
+  const cat=d.cat, dRoot=isRootId(_dragId), tRoot=isRootId(targetId);
+  let group;
+  if(dRoot && tRoot){
+    const fol=tt.ref.folder||null;
+    if(fol) d.ref.folder=fol; else delete d.ref.folder;
+    group=rootGroupRefs(cat, fol);
+  } else if(!dRoot && !tRoot){
+    if(treeParentId(_dragId)!==treeParentId(targetId)) return;   // 같은 부모의 형제끼리만
+    group=childGroupRefs(cat, treeParentId(targetId));
+  } else { return; }   // 루트↔자식 교차 이동은 무시
+  reinsertRef(group, d.ref, targetId, before);
+  markDirty(); renderLeft();
+}
+/* 폴더 헤더에 드롭: 루트 항목을 그 폴더 맨 뒤로 */
+function dropInFolder(folderId){
+  const d=findItem(_dragId); if(!d) return;
+  const f=W.folders.find(x=>x.id===folderId);
+  if(!f || f.cat!==d.cat || !isRootId(_dragId)) return;
+  d.ref.folder=folderId;
+  const arr=rootGroupRefs(d.cat, folderId).filter(x=>x.id!==d.ref.id);
+  arr.push(d.ref); arr.forEach((x,n)=>{ x.sidx=n; });
+  markDirty(); renderLeft();
+}
+/* 분류 빈 영역에 드롭: 루트 항목을 폴더 밖(loose) 맨 뒤로 */
+function dropLoose(cat){
+  const d=findItem(_dragId); if(!d || d.cat!==cat || !isRootId(_dragId)) return;
+  if(!(d.ref.folder)) { /* 이미 폴더 밖 */ }
+  delete d.ref.folder;
+  const arr=rootGroupRefs(cat, null).filter(x=>x.id!==d.ref.id);
+  arr.push(d.ref); arr.forEach((x,n)=>{ x.sidx=n; });
+  markDirty(); renderLeft();
+}
+function clearDropCues(){
+  document.querySelectorAll(".item.dropbefore,.item.dropafter").forEach(el=>el.classList.remove("dropbefore","dropafter"));
+  document.querySelectorAll(".folderrow.dropinto").forEach(el=>el.classList.remove("dropinto"));
+}
+
+/* 폴더 CRUD */
+function nextForder(cat){ return W.folders.filter(f=>f.cat===cat).reduce((m,f)=>Math.max(m,(f.forder??0)+1),0); }
+function toggleFolder(id){ collapsedFolders.has(id)?collapsedFolders.delete(id):collapsedFolders.add(id); renderLeft(); }
+function addFolder(cat){
+  const f={id:uid(), cat, name:t("새 폴더"), forder:nextForder(cat)};
+  W.folders.push(f); markDirty(); renderLeft();   // 기본 이름으로 조용히 생성 — 이름은 ✎(또는 더블클릭)로 변경
+}
+function renameFolder(id){
+  const f=W.folders.find(x=>x.id===id); if(!f) return;
+  openModal(`<h2>${t("폴더 이름 변경")}</h2>
+    <input class="f" id="fName" value="${esc(f.name)}" onkeydown="if(event.key==='Enter')confirmRenameFolder('${id}')">
+    <div class="mrow"><button class="btn" onclick="closeModal()">${t("취소")}</button>
+      <button class="btn primary" onclick="confirmRenameFolder('${id}')">${t("확인")}</button></div>`);
+  setTimeout(()=>{ const el=document.getElementById("fName"); if(el){ el.focus(); el.select(); } }, 30);
+}
+function confirmRenameFolder(id){
+  const f=W.folders.find(x=>x.id===id); if(!f){ closeModal(); return; }
+  const v=(document.getElementById("fName").value||"").trim();
+  f.name=v||t("새 폴더"); closeModal(); markDirty(); renderLeft();
+}
+function delFolder(id){
+  appConfirm(t("이 폴더를 삭제할까요? 안의 항목은 폴더 밖으로 나옵니다."), ()=>{
+    W.folders=W.folders.filter(f=>f.id!==id);
+    [...W.places,...W.entities,...W.events].forEach(x=>{ if(x.folder===id) delete x.folder; });
+    markDirty(); renderLeft();
+  });
+}
+/* 폴더 행 렌더 (접기/이름/개수/이름변경·삭제 + 드롭 대상) */
+function appendFolderRow(g, f, count){
+  const collapsed=collapsedFolders.has(f.id);
+  const row=document.createElement("div"); row.className="folderrow"; row.dataset.folder=f.id;
+  row.innerHTML=`<span class="tw" onclick="event.stopPropagation();toggleFolder('${f.id}')">${collapsed?"▶":"▼"}</span>
+    <span class="fico">📁</span>
+    <span class="fnm" ondblclick="renameFolder('${f.id}')" title="${esc(f.name)}">${esc(f.name||t("새 폴더"))}</span>
+    <span class="fcount">${count}</span>
+    <span class="facts">
+      <button class="fbtn" title="${t("폴더 이름 변경")}" onclick="event.stopPropagation();renameFolder('${f.id}')">✎</button>
+      <button class="fbtn" title="${t("폴더 삭제")}" onclick="event.stopPropagation();delFolder('${f.id}')">🗑</button>
+    </span>`;
+  row.addEventListener("dragover",ev=>{ if(!_dragId) return; ev.preventDefault(); ev.stopPropagation(); clearDropCues(); row.classList.add("dropinto"); });
+  row.addEventListener("dragleave",()=>row.classList.remove("dropinto"));
+  row.addEventListener("drop",ev=>{ if(!_dragId) return; ev.preventDefault(); ev.stopPropagation(); dropInFolder(f.id); clearDropCues(); _dragId=null; });
+  g.appendChild(row);
+}
 
 function renderLeft(){
   const q = document.getElementById("search").value.trim().toLowerCase();
@@ -672,26 +840,46 @@ function renderLeft(){
     if(q) items = items.filter(i=>(i.name||"").toLowerCase().includes(q)
         || (i.tags||[]).join(" ").toLowerCase().includes(q));
     const collapsed = collapsedCats.has(key);
-    const g = document.createElement("div"); g.className="cat-group";
+    const g = document.createElement("div"); g.className="cat-group"; g.dataset.cat=key;
     g.innerHTML = `<div class="cat-title" onclick="toggleCat('${key}')">
       <span><span class="cat-tw">${collapsed?"▶":"▼"}</span> ${meta.icon} ${t(meta.label)} (${items.length})</span>
-      <button class="cat-add" title="${en?`Add ${t(meta.label)}`:`${meta.label} 추가`}" onclick="event.stopPropagation();addItem('${key}')">＋</button></div>`;
+      <span class="cat-btns">
+        <button class="cat-add" title="${en?"New folder":"폴더 추가"}" onclick="event.stopPropagation();addFolder('${key}')">📁</button>
+        <button class="cat-add" title="${en?`Add ${t(meta.label)}`:`${meta.label} 추가`}" onclick="event.stopPropagation();addItem('${key}')">＋</button>
+      </span></div>`;
     if(!collapsed){
       if(q){
-        items.forEach(i=>appendItemRow(g,i,0,false,false));   // 검색 중엔 평면
+        items.forEach(i=>appendItemRow(g,i,0,false,false));   // 검색 중엔 평면(폴더·순서 무시)
       } else {
+        // 그룹 안 정렬: sidx 우선, 없으면 기존(생성) 순서
+        const idx=new Map(items.map((it,n)=>[it.id,n]));
+        const sv=x=> typeof x.sidx==="number"?x.sidx:1e9;
+        const bySort=(a,b)=> (sv(a)-sv(b)) || ((idx.get(a.id)??0)-(idx.get(b.id)??0));
         const roots=items.filter(i=>{ const p=treeParent(i); return !p || !items.some(x=>x.id===p); });
         const seen=new Set();
         const renderNode=(node,depth)=>{
           if(seen.has(node.id)) return; seen.add(node.id);
-          const kids=items.filter(c=>treeParent(c)===node.id);
+          const kids=items.filter(c=>treeParent(c)===node.id).sort(bySort);
           const expanded=expandedNodes.has(node.id);
           appendItemRow(g,node,depth,kids.length>0,expanded);
           if(kids.length && expanded) kids.forEach(c=>renderNode(c,depth+1));
         };
-        roots.forEach(rt=>renderNode(rt,0));
+        // 1) 폴더들(forder 순) → 각 폴더에 든 루트만
+        const folders=W.folders.filter(f=>f.cat===key).sort((a,b)=>((a.forder??0)-(b.forder??0)));
+        const folderIds=new Set(folders.map(f=>f.id));
+        folders.forEach(f=>{
+          const froots=roots.filter(r=>(r.folder||null)===f.id).sort(bySort);
+          appendFolderRow(g,f,froots.length);
+          if(!collapsedFolders.has(f.id)) froots.forEach(rt=>renderNode(rt,1));
+        });
+        // 2) 폴더에 안 든 루트(loose)
+        const loose=roots.filter(r=>!r.folder||!folderIds.has(r.folder)).sort(bySort);
+        loose.forEach(rt=>renderNode(rt,0));
       }
     }
+    // 분류 그룹 빈 영역에 드롭 → 폴더 밖으로 (항목/폴더 행은 stopPropagation 하므로 여기엔 안 옴)
+    g.addEventListener("dragover",ev=>{ if(!_dragId) return; ev.preventDefault(); });
+    g.addEventListener("drop",ev=>{ if(!_dragId) return; ev.preventDefault(); dropLoose(key); clearDropCues(); _dragId=null; });
     box.appendChild(g);
   }
 }
@@ -706,6 +894,14 @@ function appendItemRow(g,i,depth,hasKids,expanded){
   const mark = (i.shape==="area" ? " ▱" : i.shape==="line" ? " 〰" : i.shape==="label" ? " T" : "")+(i.locked?" 🔒":"");
   el.innerHTML=`${tog}<span class="dot" style="background:${meta.color}"></span><span class="nm">${esc(i.name||t("(이름없음)"))}${mark}</span>`;
   el.onclick=()=>selectItem(i.id);
+  // 드래그로 순서 변경 / 폴더 이동 (검색 중이 아닐 때만 의미 있음 — 검색은 평면이라 드롭해도 그룹이 같음)
+  el.draggable=true; el.dataset.id=i.id;
+  el.addEventListener("dragstart",ev=>{ _dragId=i.id; ev.dataTransfer.effectAllowed="move"; try{ev.dataTransfer.setData("text/plain",i.id);}catch(e){} el.classList.add("dragging"); });
+  el.addEventListener("dragend",()=>{ el.classList.remove("dragging"); clearDropCues(); _dragId=null; });
+  el.addEventListener("dragover",ev=>{ if(!_dragId||_dragId===i.id) return; ev.preventDefault(); ev.stopPropagation();
+    clearDropCues(); const r=el.getBoundingClientRect(); el.classList.add(((ev.clientY-r.top)<r.height/2)?"dropbefore":"dropafter"); });
+  el.addEventListener("drop",ev=>{ if(!_dragId||_dragId===i.id){ clearDropCues(); return; } ev.preventDefault(); ev.stopPropagation();
+    const r=el.getBoundingClientRect(); const before=((ev.clientY-r.top)<r.height/2); applyDrop(i.id, before); clearDropCues(); _dragId=null; });
   g.appendChild(el);
 }
 
@@ -725,6 +921,7 @@ function addItem(cat){
   } else {
     W.entities.push({id,name:(curLang()==="en"?"New ":"새 ")+t(CATS[cat].label),cat,desc:"",tags:[]});
   }
+  const nr=findItem(id); if(nr) nr.ref.sidx=nextSidx(cat);   // 사이드바 맨 뒤(폴더 밖)에 배치
   selectItem(id);
   renderAll();
 }
@@ -1101,7 +1298,9 @@ function renderDetail(){
   }
   if(it.kind==="event"){
     html+=`<label class="fl">${t("시점 (자유 형식: 예 '제국력 342년')")}</label>
-      <input class="f" value="${esc(r.when||"")}" oninput="upd('when',this.value)">`;
+      <input class="f" value="${esc(r.when||"")}" oninput="upd('when',this.value)">
+      <label class="fl">${t("요약 (연표에 표시)")}</label>
+      <input class="f" value="${esc(r.summary||"")}" placeholder="${t("연표에 표시될 짧은 요약 (비우면 설명 표시)")}" oninput="upd('summary',this.value)">`;
   }
   html+=`<label class="fl">${t("설명")}</label>
     <div class="wiki-view" id="wikiView" onclick="editDesc()">${r.desc?renderWiki(r.desc):`<span class="wiki-empty">${t("클릭하여 설명 입력…")}</span>`}</div>
@@ -2020,11 +2219,13 @@ function renderTimeline(){
         <button ${idx===0?"disabled":""} onclick="event.stopPropagation();moveEvent('${e.id}',-1)">▲</button>
         <button ${idx===evs.length-1?"disabled":""} onclick="event.stopPropagation();moveEvent('${e.id}',1)">▼</button>
       </div>` : ``;
+    const summ=(e.summary||"").trim();
+    const bodyText = summ ? esc(stripWiki(summ)) : esc(stripWiki(e.desc||"").slice(0,80));
     s+=`<div class="tl-item"><div class="tl-when">${esc(e.when||t("시점 미정"))}</div>
       <div class="tl-line"></div>
       <div class="tl-body" onclick="selectItem('${e.id}')">
         <h4>${esc(e.name)}</h4>
-        <p>${esc(stripWiki(e.desc||"")).slice(0,80)}${meta.length?" · "+meta.join(" · "):""}</p></div>
+        <p>${bodyText}${meta.length?" · "+meta.join(" · "):""}</p></div>
       ${ctrls}</div>`;
   });
   box.innerHTML=s;
@@ -2092,7 +2293,7 @@ async function openWorld(){
 function applyLoadedWorld(text){
   try{
     const d=JSON.parse(text);
-    W={meta:d.meta||{title:t("불러온 세계")},maps:d.maps,map:d.map,currentMap:d.currentMap,places:d.places||[],entities:d.entities||[],events:d.events||[],links:d.links||[],timelineManual:!!d.timelineManual,graphPos:d.graphPos||{}};
+    W={meta:d.meta||{title:t("불러온 세계")},maps:d.maps,map:d.map,currentMap:d.currentMap,places:d.places||[],entities:d.entities||[],events:d.events||[],links:d.links||[],folders:d.folders||[],timelineManual:!!d.timelineManual,graphPos:d.graphPos||{}};
     migrateMaps();
     sel=null; document.getElementById("worldTitle").value=W.meta.title||t("불러온 세계");
     applyMap(); loadTerrain(); renderMapBar(); fitView(); renderAll();
@@ -2599,6 +2800,12 @@ function curLang(){ return appSettings().lang==="en" ? "en" : "ko"; }
 /* var로 선언해 호이스팅 → 스크립트 상단(예: let W=blankWorld())에서 t()가 먼저 불려도
    TDZ 오류 없이 안전하게 동작. t()는 사전이 아직 없으면 원문(한국어)로 폴백. */
 var I18N_EN = {
+  /* ── 폴더 / 요약 (사이드바·연표) ── */
+  "새 폴더":"New Folder", "폴더 추가":"New folder",
+  "폴더 이름 변경":"Rename folder", "폴더 삭제":"Delete folder",
+  "이 폴더를 삭제할까요? 안의 항목은 폴더 밖으로 나옵니다.":"Delete this folder? Its items will move out of the folder.",
+  "요약 (연표에 표시)":"Summary (shown in timeline)",
+  "연표에 표시될 짧은 요약 (비우면 설명 표시)":"Short summary shown in the timeline (falls back to description if empty)",
   /* ── 상단 바 ── */
   "이름 없는 세계":"Untitled World",
   "세계관 제목":"World title",
@@ -3188,7 +3395,7 @@ function loadAutosave(){
     const raw=localStorage.getItem("we_autosave"); if(!raw) return false;
     const d=JSON.parse(raw);
     W={meta:d.meta||{title:t("이름 없는 세계")},maps:d.maps,map:d.map,currentMap:d.currentMap,places:d.places||[],
-       entities:d.entities||[],events:d.events||[],links:d.links||[],timelineManual:!!d.timelineManual,graphPos:d.graphPos||{}};
+       entities:d.entities||[],events:d.events||[],links:d.links||[],folders:d.folders||[],timelineManual:!!d.timelineManual,graphPos:d.graphPos||{}};
     migrateMaps();
     document.getElementById("worldTitle").value=W.meta.title||t("이름 없는 세계");
     return true;

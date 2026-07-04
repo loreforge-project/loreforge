@@ -1,0 +1,9 @@
+# 저장소엔 텍스트 파일을 LF로 통일해서 저장(맥/리눅스/윈도우 어디서 clone해도 동일).
+# 체크아웃 시 로컬 OS 관례에 맞게 자동 변환되므로, Windows에서 core.autocrlf=true여도
+# "LF will be replaced by CRLF" 경고 없이 정상 동작합니다.
+* text=auto eol=lf
+
+# 바이너리 파일은 줄바꿈 변환 대상에서 제외
+*.png binary
+*.ico binary
+*.exe binary

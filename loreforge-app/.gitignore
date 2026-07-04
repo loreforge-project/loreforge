@@ -1,0 +1,4 @@
+# Rust/Tauri 빌드 산출물
+src-tauri/target/
+# 동기화로 생성되는 프론트엔드 (원본은 ../Loreforge.html)
+ui/

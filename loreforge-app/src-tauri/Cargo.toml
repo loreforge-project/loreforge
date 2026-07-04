@@ -1,0 +1,26 @@
+[package]
+name = "loreforge"
+version = "1.0.0"
+description = "Loreforge — worldbuilding tool"
+edition = "2021"
+rust-version = "1.77.2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# rustls-tls: HTTPS(클라우드 API)를 OpenSSL/네이티브 TLS 없이 처리 → 윈도우 빌드가 단순해짐
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+# 네이티브 파일 열기/저장 대화상자
+rfd = "0.15"
+# 지도 PNG 저장(base64 → 바이너리 디코드)
+base64 = "0.22"
+
+# 릴리스 바이너리 크기 최적화
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

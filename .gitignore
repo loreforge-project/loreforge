@@ -1,0 +1,24 @@
+# ── 공개 저장소용 .gitignore ──
+# 이 폴더를 그대로 git 저장소로 쓸 경우, 개인 작업물/구버전 자료는 커밋되지 않도록 제외합니다.
+# (Loreforge.html 과 loreforge-app/ 만 공개 대상입니다. loreforge-app/ 안의 빌드 산출물은
+#  loreforge-app/.gitignore 에서 별도로 이미 제외됩니다.)
+
+# 세션 인수인계용 내부 메모(개인 작업 관례·경로 등이 담겨 있어 비공개)
+LOREFORGE_OVERVIEW.md
+
+# 리브랜딩 이전 구버전 백업·설계문서(참고용, 배포 대상 아님)
+World_Engine.html
+World_Engine_설계문서.md
+
+# 개인 로드맵/비교 메모
+비교분석_및_로드맵.md
+
+# 개인 테스트 데이터(저장 파일·내보낸 이미지 등)
+TestWorkspace/
+
+# loreforge-app 이전의 구버전 데스크톱 시도(현재는 loreforge-app 사용)
+WorldEngine-Desktop/
+
+# OS/에디터 잡파일
+.DS_Store
+Thumbs.db

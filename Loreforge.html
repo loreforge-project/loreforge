@@ -1,0 +1,3306 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loreforge — 세계관 구축 도구</title>
+<style>
+  :root{
+    --bg:#1a1b26; --panel:#24283b; --panel2:#1f2335; --line:#343a52;
+    --text:#c0caf5; --muted:#7a83a8; --accent:#7aa2f7; --accent2:#bb9af7;
+    --gold:#e0af68; --green:#9ece6a; --red:#f7768e;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{font-family:"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
+    background:var(--bg); color:var(--text); overflow:hidden; font-size:14px;
+    display:flex; flex-direction:column;}
+  button{font-family:inherit; cursor:pointer;}
+
+  /* Top bar */
+  #topbar{min-height:52px; display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:7px 16px;
+    background:var(--panel2); border-bottom:1px solid var(--line); flex-shrink:0;}
+  #topbar h1{font-size:16px; font-weight:700; color:#fff; letter-spacing:.5px;}
+  #topbar h1 span{color:var(--accent);}
+  #topbar h1 em{font-style:normal; font-size:11px; color:var(--muted); font-weight:500; letter-spacing:0; margin-left:3px;}
+  #worldTitle{background:transparent; border:1px solid transparent; color:var(--text);
+    font-size:14px; padding:5px 8px; border-radius:6px; min-width:180px;}
+  #worldTitle:hover,#worldTitle:focus{border-color:var(--line); outline:none; background:var(--bg);}
+  .tabs{display:flex; gap:4px; margin-left:8px; flex-shrink:0;}
+  .tab{background:transparent; border:1px solid var(--line); color:var(--muted);
+    padding:6px 14px; border-radius:6px; font-size:13px; white-space:nowrap; flex-shrink:0;}
+  .tab.active{background:var(--accent); color:#0b0e18; border-color:var(--accent); font-weight:600;}
+  .spacer{flex:1; min-width:12px;}
+  .tb-actions{display:flex; flex-wrap:wrap; align-items:center; gap:8px;}
+  .btn{background:var(--panel); border:1px solid var(--line); color:var(--text);
+    padding:7px 13px; border-radius:6px; font-size:13px; white-space:nowrap; flex-shrink:0;}
+  .btn:hover{border-color:var(--accent); color:#fff;}
+  .btn.primary{background:var(--accent); color:#0b0e18; border-color:var(--accent); font-weight:600;}
+
+  /* Layout */
+  #main{display:flex; flex:1; min-height:0;}
+  #left{width:270px; background:var(--panel2); border-right:1px solid var(--line);
+    display:flex; flex-direction:column;}
+  #center{flex:1; position:relative; overflow:hidden; background:var(--bg);}
+  #right{width:320px; background:var(--panel2); border-left:1px solid var(--line);
+    display:flex; flex-direction:column; position:relative; flex-shrink:0;}
+  #rightResizer{position:absolute; left:-3px; top:0; width:7px; height:100%; cursor:col-resize; z-index:20;}
+  #rightResizer::after{content:""; position:absolute; left:2px; top:0; width:2px; height:100%; background:transparent;}
+  #rightResizer:hover::after, #rightResizer.drag::after{background:var(--accent);}
+
+  .panel-head{padding:12px 14px; border-bottom:1px solid var(--line); font-weight:700;
+    color:#fff; font-size:13px; display:flex; align-items:center; gap:8px;}
+  .scroll{overflow-y:auto; flex:1; padding:10px;}
+  .scroll::-webkit-scrollbar{width:8px;}
+  .scroll::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+
+  #search{width:100%; padding:8px 10px; background:var(--bg); border:1px solid var(--line);
+    border-radius:6px; color:var(--text); font-size:13px; margin-bottom:10px;}
+  #search:focus{outline:none; border-color:var(--accent);}
+
+  .cat-group{margin-bottom:14px;}
+  .cat-title{font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--muted);
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; padding:2px 4px;
+    cursor:pointer; border-radius:5px;}
+  .cat-title:hover{background:var(--panel); color:var(--text);}
+  .tw{display:inline-block; width:16px; text-align:center; color:var(--muted); cursor:pointer;
+    font-size:11px; user-select:none;}
+  .tw:hover{color:#fff;}
+  .tw-empty{display:inline-block; width:16px;}
+  .cat-tw{display:inline-block; width:14px; text-align:center; font-size:11px; color:var(--muted);}
+  .cat-title:hover .cat-tw{color:var(--text);}
+  .cat-add{background:transparent; border:none; color:var(--accent); font-size:16px; line-height:1;
+    width:20px; height:20px; border-radius:4px;}
+  .cat-add:hover{background:var(--line); color:#fff;}
+  .item{display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:6px;
+    cursor:pointer; font-size:13px;}
+  .item:hover{background:var(--panel);}
+  .item.sel{background:var(--accent); color:#0b0e18;}
+  .dot{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
+  .item .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .empty{color:var(--muted); font-size:12px; padding:4px 9px; font-style:italic;}
+
+  /* Map */
+  #mapWrap{position:absolute; inset:0; cursor:grab;}
+  #mapWrap.placing{cursor:crosshair;}
+  #mapWrap.grabbing{cursor:grabbing;}
+  #viewport{position:absolute; top:0; left:0; transform-origin:0 0;}
+  #mapbg{position:absolute; top:0; left:0; width:4000px; height:3000px; background:#161821;}
+  #terrain,#terrainBase{position:absolute; top:0; left:0; width:4000px; height:3000px;}
+  #grid{position:absolute; top:0; left:0; width:4000px; height:3000px;
+    background-image:
+      linear-gradient(rgba(90,100,140,.18) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(90,100,140,.18) 1px,transparent 1px);
+    background-size:50px 50px; pointer-events:none;}
+  #edges{position:absolute; top:0; left:0; width:4000px; height:3000px; pointer-events:none;}
+  #measure{position:absolute; top:0; left:0; width:4000px; height:3000px; pointer-events:none; z-index:4;}
+  #scaleBar{position:absolute; bottom:44px; right:16px; z-index:5; display:none; text-align:center;
+    background:rgba(36,40,59,.9); border:1px solid var(--line); border-radius:6px; padding:5px 10px;}
+  #scaleBar .sb-line{height:4px; background:var(--text); border-radius:2px; margin:0 auto 3px;}
+  #scaleBar span{font-size:11px; color:var(--muted);}
+  #areas{position:absolute; top:0; left:0; width:4000px; height:3000px; pointer-events:none; z-index:1;}
+  #areas path[data-id]{pointer-events:auto; cursor:move;}
+  #areas.locked path[data-id]{pointer-events:none;}
+  #areas circle.vh{fill:#fff; stroke:var(--accent); pointer-events:auto; cursor:grab;}
+  #areas circle.vh.mid{fill:var(--accent); stroke:#0b0e18; opacity:.5; cursor:copy;}
+  #areas circle.vh.hole{stroke:var(--red);}
+  #areas.locked circle.vh{pointer-events:none;}
+  .area-label{fill:#fff; paint-order:stroke; stroke:rgba(0,0,0,.65); stroke-width:4px;
+    text-anchor:middle; pointer-events:none; font-weight:700; font-size:15px;}
+  .maplabel{position:absolute; transform:translate(-50%,-50%); cursor:pointer; user-select:none;
+    font-weight:800; white-space:nowrap; letter-spacing:1px;
+    text-shadow:0 1px 3px #000, 0 0 6px rgba(0,0,0,.7); z-index:2;}
+  .maplabel.sel{outline:2px dashed var(--accent); outline-offset:3px; border-radius:3px;}
+  #mapBar{position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:5;
+    display:flex; align-items:center; gap:6px; background:rgba(31,35,53,.96);
+    border:1px solid var(--line); border-radius:10px; padding:6px 8px;
+    box-shadow:0 4px 16px rgba(0,0,0,.5); max-width:66%;}
+  #mapBar select{background:var(--bg); color:var(--text); border:1px solid var(--line);
+    border-radius:6px; padding:5px 8px; font-size:13px; max-width:220px;}
+  #mapBar .mapcrumb{font-size:11px; color:var(--muted); white-space:nowrap;}
+  #mapBar .btn.mini{padding:5px 9px; font-size:12px;}
+  #areaControls{position:absolute; top:60px; left:50%; transform:translateX(-50%); display:none; gap:8px;
+    align-items:center; background:rgba(31,35,53,.97); border:1px solid var(--line); border-radius:10px;
+    padding:8px 12px; z-index:6; box-shadow:0 4px 16px rgba(0,0,0,.5);}
+  #areaControls span{font-size:12px; color:var(--muted);}
+  .pin{position:absolute; transform:translate(-50%,-100%); cursor:pointer; user-select:none;
+    display:flex; flex-direction:column; align-items:center; z-index:2;}
+  .pin .head{width:26px; height:26px; border-radius:50% 50% 50% 0; transform:rotate(-45deg);
+    border:2px solid rgba(255,255,255,.85); box-shadow:0 2px 6px rgba(0,0,0,.5);
+    display:flex; align-items:center; justify-content:center;}
+  .pin .head span{transform:rotate(45deg); font-size:13px;}
+  .pin .label{margin-top:3px; font-size:12px; background:rgba(15,17,26,.85); padding:2px 7px;
+    border-radius:10px; white-space:nowrap; border:1px solid var(--line);}
+  .pin.sel .label{background:var(--accent); color:#0b0e18; border-color:var(--accent); font-weight:600;}
+  .pin.sel .head{border-color:var(--accent);}
+
+  /* Map toolbar (top-left) */
+  #mapToolbar{position:absolute; top:14px; left:14px; display:flex; flex-direction:column; gap:4px;
+    background:rgba(31,35,53,.96); border:1px solid var(--line); border-radius:10px; padding:6px;
+    box-shadow:0 4px 16px rgba(0,0,0,.5); z-index:5;}
+  .tbtn{width:38px; height:38px; border-radius:8px; background:transparent; border:1px solid transparent;
+    font-size:18px; display:flex; align-items:center; justify-content:center; color:var(--text);}
+  .tbtn:hover{background:var(--panel); border-color:var(--line);}
+  .tbtn.active{background:var(--accent); border-color:var(--accent);}
+  .tsep{height:1px; background:var(--line); margin:3px 2px;}
+  #brushPanel,#simplifyPanel{position:absolute; top:14px; left:64px; display:none; z-index:5;
+    background:rgba(31,35,53,.97); border:1px solid var(--line); border-radius:10px; padding:12px;
+    width:210px; box-shadow:0 4px 16px rgba(0,0,0,.5);}
+  #brushPanel h4,#simplifyPanel h4{font-size:12px; color:#fff; margin-bottom:8px;}
+  .icon-row{display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px;}
+  .icon-b{width:30px; height:30px; border:1px solid var(--line); background:var(--bg);
+    border-radius:6px; font-size:16px; cursor:pointer; line-height:1; padding:0;}
+  .icon-b:hover{border-color:var(--accent);}
+  .swatches{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:10px;}
+  .sw{height:34px; border-radius:6px; border:2px solid transparent; cursor:pointer; position:relative;}
+  .sw.sel{border-color:#fff;}
+  .sw span{position:absolute; bottom:1px; left:0; right:0; font-size:9px; text-align:center;
+    color:rgba(255,255,255,.9); text-shadow:0 1px 2px #000;}
+  .brow{display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12px; color:var(--muted);}
+  .brow input[type=range]{flex:1;}
+  .brow input[type=color]{width:34px; height:26px; border:1px solid var(--line); background:none; border-radius:5px; padding:0;}
+
+  #mapHint{position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+    background:rgba(36,40,59,.95); border:1px solid var(--line); padding:8px 16px;
+    border-radius:20px; font-size:12px; color:var(--muted); pointer-events:none;
+    box-shadow:0 4px 12px rgba(0,0,0,.4);}
+  #mapTools{position:absolute; bottom:16px; left:16px; display:flex; gap:8px;}
+  #zoomInfo{position:absolute; bottom:16px; right:16px; font-size:12px; color:var(--muted);
+    background:rgba(36,40,59,.9); padding:4px 10px; border-radius:6px; cursor:pointer; user-select:none;}
+  #zoomInfo:hover{color:#fff;}
+
+  /* 지도 크기 조절 핸들(양 끝·모서리를 드래그해 지도 캔버스 크기 변경) */
+  #mapResize{position:absolute; top:0; left:0; z-index:3;}
+  .rzh{position:absolute; width:12px; height:12px; margin:-6px 0 0 -6px; background:var(--accent);
+    border:2px solid #0b0e18; border-radius:3px; box-shadow:0 1px 4px rgba(0,0,0,.5); opacity:.8;}
+  .rzh:hover{opacity:1; background:#fff;}
+  .rzh-n,.rzh-s{cursor:ns-resize;}
+  .rzh-e,.rzh-w{cursor:ew-resize;}
+  .rzh-ne,.rzh-sw{cursor:nesw-resize;}
+  .rzh-nw,.rzh-se{cursor:nwse-resize;}
+  #mapResizePreview{position:absolute; top:0; left:0; display:none; z-index:2; pointer-events:none;
+    border:2px dashed var(--accent); background:rgba(122,162,247,.08); box-sizing:border-box;}
+
+  /* Graph view */
+  #graphView{position:absolute; inset:0; display:none;}
+  #graphSvg{width:100%; height:100%;}
+  #graphFilter{position:absolute; top:0; left:0; right:0; z-index:3; padding:10px 14px 18px;
+    display:flex; flex-direction:column; gap:6px;
+    background:linear-gradient(rgba(26,27,38,.97),rgba(26,27,38,.75),rgba(26,27,38,0));}
+  .gf-row{display:flex; flex-wrap:wrap; gap:6px; align-items:center;}
+  .gf-lbl{font-size:11px; color:var(--muted); width:60px; white-space:nowrap; flex-shrink:0;}
+  .gf-chip{background:var(--panel); border:1px solid var(--line); color:var(--text); font-size:12px;
+    padding:4px 11px; border-radius:14px; cursor:pointer;}
+  .gf-chip:hover{border-color:var(--accent);}
+  .gf-chip.on{background:var(--accent); border-color:var(--accent); color:#0b0e18; font-weight:600;}
+  .gf-chip.mini{font-size:11px; color:var(--muted); padding:3px 9px;}
+  /* Timeline view */
+  #timelineView{position:absolute; inset:0; display:none; overflow-y:auto; padding:24px;}
+  .tl-item{display:flex; gap:14px; margin-bottom:4px;}
+  .tl-when{width:110px; text-align:right; color:var(--gold); font-size:13px; flex-shrink:0; padding-top:2px;}
+  .tl-line{width:2px; background:var(--line); position:relative; flex-shrink:0;}
+  .tl-line::before{content:''; position:absolute; top:4px; left:-4px; width:10px; height:10px;
+    border-radius:50%; background:var(--red); border:2px solid var(--bg);}
+  .tl-body{padding-bottom:20px; cursor:pointer;}
+  .tl-body h4{font-size:14px; color:#fff;}
+  .tl-body p{font-size:12px; color:var(--muted); margin-top:2px;}
+  #tlBar{display:flex; align-items:center; gap:8px; margin-bottom:20px; flex-wrap:wrap;}
+  .tl-mode{font-size:11px; color:var(--muted);}
+  .tl-hint{font-size:11px; color:var(--muted); margin-left:4px;}
+  .tl-move{display:flex; flex-direction:column; gap:3px; margin-left:6px; align-self:flex-start;}
+  .tl-move button{background:var(--panel); border:1px solid var(--line); color:var(--text);
+    width:28px; height:20px; border-radius:5px; font-size:10px; cursor:pointer; line-height:1;}
+  .tl-move button:hover:not(:disabled){border-color:var(--accent); color:#fff;}
+  .tl-move button:disabled{opacity:.3; cursor:default;}
+
+  /* Right detail panel */
+  #detail{padding:14px;}
+  .det-none{color:var(--muted); font-style:italic; padding:20px 4px; text-align:center; font-size:13px;}
+  .det-head{display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+  .det-badge{font-size:11px; padding:3px 9px; border-radius:12px; color:#0b0e18; font-weight:700;}
+  input.f,textarea.f,select.f{width:100%; background:var(--bg); border:1px solid var(--line);
+    color:var(--text); border-radius:6px; padding:8px 10px; font-size:13px; font-family:inherit;
+    margin-bottom:10px;}
+  input.f:focus,textarea.f:focus,select.f:focus{outline:none; border-color:var(--accent);}
+  textarea.f{resize:vertical; min-height:70px;}
+  label.fl{display:block; font-size:11px; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.5px; margin-bottom:4px;}
+  .sect{margin-top:16px; border-top:1px solid var(--line); padding-top:14px;}
+  .sect h3{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px;
+    margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;}
+  .link-row{display:flex; align-items:center; gap:8px; padding:6px 8px; background:var(--panel);
+    border-radius:6px; margin-bottom:5px; font-size:13px;}
+  .link-row .rel{font-size:11px; color:var(--gold);}
+  .link-row .nm{flex:1; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .link-row .nm:hover{color:#fff; text-decoration:underline;}
+  .x{background:transparent; border:none; color:var(--muted); font-size:15px; line-height:1;}
+  .x:hover{color:var(--red);}
+  .del-btn{width:100%; margin-top:16px; background:transparent; border:1px solid var(--red);
+    color:var(--red); padding:8px; border-radius:6px; font-size:13px;}
+  .del-btn:hover{background:var(--red); color:#fff;}
+  .tag{display:inline-block; background:var(--line); color:var(--text); font-size:11px;
+    padding:2px 8px; border-radius:10px; margin:2px 3px 2px 0;}
+  #saveStatus{font-size:11px; color:var(--muted); margin-right:4px; min-width:78px; text-align:right;}
+  #fileInfo{font-size:11px; color:var(--muted); margin-right:8px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .det-img{margin-bottom:10px;}
+  .img-frame{width:100%; border-radius:8px; border:1px solid var(--line); overflow:hidden;
+    margin-bottom:6px; background:#0e1017;}
+  .img-frame img{width:100%; height:100%; display:block; user-select:none; -webkit-user-drag:none;}
+  .img-ctrls{display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;}
+  .mini-l{font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px; flex:1;}
+  .mini-l input[type=range]{flex:1;}
+  .btn.mini{padding:4px 9px; font-size:12px;}
+  .pngchk{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
+    margin-bottom:6px; cursor:pointer;}
+  .det-img-btns{display:flex; gap:6px;}
+  .det-img-btns .btn{flex:1; padding:6px; font-size:12px;}
+  .wiki-view{font-size:13px; color:var(--text); line-height:1.55; background:var(--bg);
+    border:1px solid var(--line); border-radius:6px; padding:8px 10px; margin-bottom:4px;
+    min-height:20px; cursor:text; white-space:pre-wrap;}
+  .wiki-view:hover{border-color:var(--accent);}
+  .wiki-empty{color:var(--muted); font-style:italic;}
+  .wlink{color:var(--accent); cursor:pointer; text-decoration:underline;}
+  .wlink:hover{color:#fff;}
+  .wlink.miss{color:var(--muted); text-decoration:none; border-bottom:1px dashed var(--muted); cursor:default;}
+  .fhint{font-size:11px; color:var(--muted); margin:0 0 10px;}
+
+  /* Modal */
+  #modal{position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
+    align-items:center; justify-content:center; z-index:100;}
+  #modalBox{background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:22px; width:400px; max-width:90vw; box-shadow:0 20px 60px rgba(0,0,0,.6);}
+  #modalBox h2{font-size:16px; color:#fff; margin-bottom:16px;}
+  .chk-list{max-height:340px; overflow:auto; margin:4px 0 10px; border:1px solid var(--line); border-radius:8px;}
+  .chk-row{display:flex; align-items:flex-start; gap:8px; padding:7px 10px; font-size:13px; border-bottom:1px solid var(--line); color:var(--text);}
+  .chk-row:last-child{border-bottom:none;}
+  .chk-row[data-jump]{cursor:pointer;}
+  .chk-row[data-jump]:hover{background:var(--panel2);}
+  .chk-dot{width:8px; height:8px; border-radius:50%; margin-top:5px; flex-shrink:0;}
+  .chk-row.warn .chk-dot{background:var(--red);}
+  .chk-row.info .chk-dot{background:var(--muted);}
+  .chk-msg{flex:1;}
+  .chk-undo{flex-shrink:0; width:22px; height:22px; padding:0; margin-top:1px;
+    border-radius:5px; background:transparent; border:1px solid var(--line); color:var(--muted);
+    cursor:pointer; font-size:12px; line-height:1;}
+  .chk-undo:hover{background:var(--red); border-color:var(--red); color:#fff;}
+  .mrow{display:flex; gap:8px; justify-content:flex-end; margin-top:8px;}
+  /* AI 점검 독 패널 */
+  #chkDock{position:absolute; top:8px; right:8px; width:300px; max-height:calc(100% - 16px);
+    background:var(--panel2); border:1px solid var(--line); border-radius:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.45); display:flex; flex-direction:column;
+    z-index:40; overflow:hidden;}
+  #chkDock.off{display:none;}
+  #chkDockHead{display:flex; align-items:center; gap:4px; padding:8px 6px 8px 12px;
+    border-bottom:1px solid var(--line); font-size:13px; font-weight:600; color:#fff;
+    background:var(--panel); user-select:none;}
+  #chkDockHead .cd-btn{width:26px; height:26px; border-radius:6px; background:transparent;
+    border:1px solid transparent; color:var(--muted); cursor:pointer; font-size:14px;}
+  #chkDockHead .cd-btn:hover{background:var(--line); color:#fff;}
+  #chkDockBody{padding:8px 10px 10px; overflow:auto;}
+  #chkDockBody .chk-sec{font-size:11px; font-weight:700; letter-spacing:.3px; color:var(--muted);
+    text-transform:uppercase; margin:2px 0 5px;}
+  #chkDockBody .chk-ok{color:var(--green); font-size:13px; margin:2px 0 4px;}
+  #chkDockBody .chk-err{color:var(--red); font-size:13px; margin:2px 0 4px;}
+  #chkDockBody .chk-muted{color:var(--muted); font-size:12px; margin:2px 0 4px;}
+  #chkDockBody .chk-refs{color:var(--muted); font-size:11px;}
+  #chkDockBody .chk-msg{flex:1;}
+  #chkDockBody .chk-dismiss{flex-shrink:0; width:20px; height:20px; margin-top:1px; padding:0;
+    border-radius:5px; background:transparent; border:1px solid var(--line); color:var(--muted);
+    cursor:pointer; font-size:12px; line-height:1;}
+  #chkDockBody .chk-dismiss:hover{background:var(--green); border-color:var(--green); color:#fff;}
+  #chkDockBody .chk-restore{margin-top:8px; width:100%; padding:6px; border-radius:6px;
+    background:transparent; border:1px dashed var(--line); color:var(--muted);
+    cursor:pointer; font-size:12px;}
+  #chkDockBody .chk-restore:hover{color:#fff; border-color:var(--muted);}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1>Lore<span>forge</span> <em id="verTag">v1.0.0</em></h1>
+  <input id="worldTitle" value="이름 없는 세계" title="세계관 제목" data-i18n-title="세계관 제목">
+  <div class="tabs">
+    <button class="tab active" data-view="map" data-i18n="지도">지도</button>
+    <button class="tab" data-view="graph" data-i18n="관계도">관계도</button>
+    <button class="tab" data-view="timeline" data-i18n="연표">연표</button>
+  </div>
+  <button class="btn" id="undoBtn" title="되돌리기 (Ctrl+Z)" data-i18n-title="되돌리기 (Ctrl+Z)" onclick="undo()">↶</button>
+  <button class="btn" id="redoBtn" title="다시 실행 (Ctrl+Shift+Z)" data-i18n-title="다시 실행 (Ctrl+Shift+Z)" onclick="redo()">↷</button>
+  <div class="spacer"></div>
+  <span id="fileInfo" title=""></span>
+  <span id="saveStatus" title="자동 저장 상태" data-i18n-title="자동 저장 상태"></span>
+  <div class="tb-actions">
+    <button class="btn" onclick="loadDemo()" data-i18n="예시 불러오기">예시 불러오기</button>
+    <button class="btn" onclick="openSettingsMenu()" data-i18n="설정">설정</button>
+    <button class="btn" onclick="openAIMenu()">AI</button>
+    <button class="btn" onclick="openConsistencyModal()" data-i18n="점검">점검</button>
+    <button class="btn" onclick="exportBible()" data-i18n="설정집">설정집</button>
+    <button class="btn" onclick="exportMapPNG()" data-i18n="지도PNG">지도PNG</button>
+    <button class="btn" onclick="saveWorld(false)" title="저장 (Ctrl+S)" data-i18n-title="저장 (Ctrl+S)" data-i18n="저장">저장</button>
+    <button class="btn" onclick="saveWorld(true)" title="다른 이름으로 저장 (Ctrl+Shift+S)" data-i18n-title="다른 이름으로 저장 (Ctrl+Shift+S)" data-i18n="내보내기">내보내기</button>
+    <button class="btn" onclick="openWorld()" data-i18n="불러오기">불러오기</button>
+    <button class="btn primary" onclick="newWorld()" data-i18n="새로 만들기">새로 만들기</button>
+  </div>
+</div>
+
+<div id="main">
+  <!-- LEFT -->
+  <div id="left">
+    <div class="panel-head" data-i18n="설정 목록">설정 목록</div>
+    <div class="scroll">
+      <input id="search" placeholder="검색…" data-i18n-ph="검색…" oninput="renderLeft()">
+      <div id="catList"></div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div id="center">
+    <!-- MAP -->
+    <div id="mapWrap">
+      <div id="viewport">
+        <div id="mapbg"></div>
+        <canvas id="terrainBase" width="4000" height="3000"></canvas>
+        <canvas id="terrain" width="4000" height="3000"></canvas>
+        <div id="grid"></div>
+        <svg id="areas" width="4000" height="3000"></svg>
+        <svg id="edges"></svg>
+        <svg id="measure" width="4000" height="3000"></svg>
+        <div id="pins"></div>
+        <div id="mapResizePreview"></div>
+        <div id="mapResize"></div>
+      </div>
+
+      <div id="mapToolbar">
+        <button class="tbtn active" data-tool="pan" title="이동 / 선택" data-i18n-title="이동 / 선택">✋</button>
+        <button class="tbtn" data-tool="place" title="장소 추가 (점, 클릭해 배치)" data-i18n-title="장소 추가 (점, 클릭해 배치)">📍</button>
+        <button class="tbtn" data-tool="area" title="영역 그리기 (면, 드래그로 경계선)" data-i18n-title="영역 그리기 (면, 드래그로 경계선)">⬠</button>
+        <button class="tbtn" data-tool="line" title="선/경로 그리기 (강·도로·여정, 드래그)" data-i18n-title="선/경로 그리기 (강·도로·여정, 드래그)">〰️</button>
+        <button class="tbtn" data-tool="label" title="텍스트 라벨 (클릭해 배치)" data-i18n-title="텍스트 라벨 (클릭해 배치)" style="font-weight:800">T</button>
+        <button class="tbtn" data-tool="brush" title="지형 그리기" data-i18n-title="지형 그리기">🖌️</button>
+        <button class="tbtn" data-tool="erase" title="지우개" data-i18n-title="지우개">🧽</button>
+        <div class="tsep"></div>
+        <button class="tbtn" data-tool="measure" title="거리 측정 (드래그)" data-i18n-title="거리 측정 (드래그)">📏</button>
+        <button class="tbtn" title="배경 설정" data-i18n-title="배경 설정" onclick="openBgModal()">🖼️</button>
+        <button class="tbtn" id="gridBtn" title="격자 켜기 / 끄기" data-i18n-title="격자 켜기 / 끄기" onclick="toggleGrid()">⊞</button>
+      </div>
+
+      <div id="mapBar"></div>
+
+      <div id="brushPanel">
+        <h4 data-i18n="지형 브러시">지형 브러시</h4>
+        <div class="swatches" id="swatches"></div>
+        <div class="brow"><span data-i18n="색상">색상</span><input type="color" id="brushColor" value="#4a7c3f" oninput="setBrushColor(this.value)"></div>
+        <div class="brow"><span data-i18n="굵기">굵기</span><input type="range" id="brushSize" min="4" max="140" value="40" oninput="brushSize=+this.value;document.getElementById('bsVal').textContent=this.value"><span id="bsVal">40</span></div>
+      </div>
+
+      <div id="simplifyPanel">
+        <h4 data-i18n="단순화 강도">단순화 강도</h4>
+        <div class="brow"><input type="range" id="simpRange" min="0" max="20" value="6" oninput="simplifyStrength=+this.value;document.getElementById('simpVal').textContent=this.value==='0'?'끔':this.value"><span id="simpVal">6</span></div>
+        <div class="fhint" style="margin:0" data-i18n-html="그린 뒤 꼭짓점을 줄입니다<br>(0 = 원본 유지).">그린 뒤 꼭짓점을 줄입니다<br>(0 = 원본 유지).</div>
+      </div>
+
+      <div id="areaControls">
+        <span data-i18n="⬠ 영역: 지도를 드래그하여 곡선으로 그립니다 · 놓으면 완성 · Esc 취소">⬠ 영역: 지도를 드래그하여 곡선으로 그립니다 · 놓으면 완성 · Esc 취소</span>
+      </div>
+
+      <div id="mapHint" data-i18n="✋ 이동 · 📍 장소 · ⬠ 영역 · 〰️ 선 · T 라벨 · 🖌️ 지형 · 📏 측정">✋ 이동 · 📍 장소 · ⬠ 영역 · 〰️ 선 · T 라벨 · 🖌️ 지형 · 📏 측정</div>
+      <div id="mapTools">
+        <button class="btn" onclick="fitView()" data-i18n="화면 맞춤">화면 맞춤</button>
+      </div>
+      <div id="scaleBar"></div>
+      <div id="zoomInfo" title="기본 배율로 복귀" data-i18n-title="기본 배율로 복귀" onclick="resetZoom()">100%</div>
+    </div>
+    <!-- GRAPH -->
+    <div id="graphView"><div id="graphFilter"></div><svg id="graphSvg"></svg></div>
+    <!-- TIMELINE -->
+    <div id="timelineView"></div>
+
+    <!-- 일관성 점검 독 -->
+    <div id="chkDock" class="off">
+      <div id="chkDockHead">
+        <span data-i18n="일관성 점검">일관성 점검</span>
+        <span style="flex:1"></span>
+        <button class="cd-btn" title="AI 심층 점검 실행" data-i18n-title="AI 심층 점검 실행" onclick="aiConsistencyCheck()">🔍</button>
+        <button class="cd-btn" title="닫기" data-i18n-title="닫기" onclick="toggleChkDock(false)">✕</button>
+      </div>
+      <div id="chkDockBody"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div id="right">
+    <div id="rightResizer" title="드래그해서 너비 조절" data-i18n-title="드래그해서 너비 조절"></div>
+    <div class="panel-head" data-i18n="상세 정보">상세 정보</div>
+    <div class="scroll"><div id="detail"></div></div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="modal"><div id="modalBox"></div></div>
+
+<script>
+/* ============ 데이터 모델 ============ */
+const CATS = {
+  place:   {label:"장소",   color:"#7aa2f7", icon:"📍"},
+  person:  {label:"인물",   color:"#9ece6a", icon:"🧑"},
+  faction: {label:"세력",   color:"#bb9af7", icon:"⚔️"},
+  event:   {label:"사건",   color:"#f7768e", icon:"⚡"},
+  item:    {label:"아이템", color:"#e0af68", icon:"💎"},
+  concept: {label:"개념",   color:"#7dcfff", icon:"✦"},
+};
+const PLACE_TYPES = ["도시","마을","수도","성/요새","던전","성지","자연","지역"];
+
+let W = blankWorld();
+let sel = null;            // {id} — 상세 패널용 주 선택
+let selSet = new Set();    // 다중 선택된 장소 id들
+function isSel(id){ return selSet.has(id) || (sel&&sel.id===id); }
+let tool = "pan";          // pan | place | brush | erase
+let view = "map";
+let cam = {x:0, y:0, z:1};  // camera pan/zoom
+let brushColor = "#4a7c3f";
+let brushSize = 40;
+let drawPoly = null;   // 영역 그리는 중인 꼭짓점 배열
+let previewPt = null;  // 커서 미리보기 점
+let measureLine = null; // 거리 측정선 {a,b}
+let holeTarget = null;  // 구멍을 추가할 영역 id
+let simplifyStrength = 6; // 그리기 단순화 강도 (0=끔, px@현재배율)
+
+/* 장소의 대표 좌표: 점이면 그 자리, 면이면 무게중심 */
+function placeAnchor(p){
+  if(p.shape==="area" && p.points && p.points.length){
+    let x=0,y=0; p.points.forEach(pt=>{x+=pt.x;y+=pt.y;});
+    return {x:x/p.points.length, y:y/p.points.length};
+  }
+  return {x:p.x, y:p.y};
+}
+/* 계층: 자식 목록 / 특정 항목이 다른 항목의 자손인지 */
+/* 트리에서의 부모: 명시적 parent 우선, 없으면 장소는 '자신이 속한 하위 지도를 소유한 지역' */
+function treeParent(i){
+  if(i.parent) return i.parent;
+  if(i.cat==="place" && i.mapId){
+    const m=W.maps.find(x=>x.id===i.mapId);
+    if(m && m.parent) return m.parent;
+  }
+  return null;
+}
+function childrenOf(id){ return allItems().filter(i=>treeParent(i)===id); }
+/* 백링크: 이 항목의 이름을 설명에서 [[이름]]으로 언급한 다른 항목들 */
+function backlinksOf(id){
+  const it=findItem(id); if(!it) return [];
+  const name=(it.ref.name||"").trim().toLowerCase(); if(!name) return [];
+  return allItems().filter(o=>{
+    if(o.id===id) return false;
+    const d=(findItem(o.id).ref.desc||""); let m; const re=/\[\[([^\]]+)\]\]/g;
+    while((m=re.exec(d))){ if(m[1].trim().toLowerCase()===name) return true; }
+    return false;
+  });
+}
+function toggleLock(id,on){ const it=findItem(id); if(!it) return;
+  if(on) it.ref.locked=true; else delete it.ref.locked;
+  renderLeft(); renderDetail(); renderPins(); markDirty(); }
+
+/* ===== 지오메트리 / 영역 소속 / 지도 간 가시성 ===== */
+function pointInPoly(x,y,poly){
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;
+    if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+function polyArea(poly){
+  let a=0; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ a+=(poly[j].x+poly[i].x)*(poly[j].y-poly[i].y); }
+  return Math.abs(a/2);
+}
+/* p를 포함하는 '직접 상위' 면 영역 후보들.
+   - 점: 점이 폴리곤 내부 / 면: 모든 꼭짓점이 폴리곤 내부(완전 포함)
+   - 다른 후보를 완전히 감싸는 바깥 후보는 제외해 가장 안쪽만 남김
+   - 겹쳐서 여러 개면 이름이 빠른(가나다/사전) 순으로 정렬해 첫 번째가 부모 */
+function containingAreasOf(p){
+  const banned=new Set([p.id, ...descendantsOfArea(p.id).map(x=>x.id)]);
+  const isArea = p.shape==="area" && p.points && p.points.length>=3;
+  const c = placeAnchor(p);
+  const inside = a => isArea
+    ? p.points.every(pt=>inArea(pt.x,pt.y,a))
+    : inArea(c.x,c.y,a);
+  const cands = W.places.filter(a=> a.shape==="area" && a.points && a.points.length>=3
+      && a.mapId===p.mapId && !banned.has(a.id) && inside(a));
+  const minimal = cands.filter(a=> !cands.some(o=> o.id!==a.id && o.points.every(pt=>pointInPoly(pt.x,pt.y,a.points))));
+  minimal.sort((x,y)=>(x.name||"").localeCompare(y.name||"","ko"));
+  return minimal;
+}
+/* 자동 소속: 수동 지정(parentManual)이 아니면, 포함하는 영역을 parent로 */
+function autoAssignArea(p){
+  if(p.parentManual) return;
+  if(p.shape==="line" || p.shape==="label") return;   // 선·라벨은 소속 자동판정 제외
+  let a = containingAreasOf(p)[0] || null;
+  if(!a){                     // 하위 지도에서 만든 경우, 그 지도가 속한 영역을 부모로
+    const m=W.maps.find(x=>x.id===p.mapId);
+    if(m && m.parent){ const par=W.places.find(x=>x.id===m.parent); if(par) a=par; }
+  }
+  const np = a ? a.id : undefined;
+  if(np!==p.parent){ p.parent=np; delete p.hideOn; }   // 소속이 바뀌면 지도별 표시 초기화
+}
+function areaOf(p){                       // parent 중 '면 영역'인 것
+  if(!p||!p.parent) return null;
+  const par=W.places.find(x=>x.id===p.parent);
+  return (par && par.shape==="area") ? par : null;
+}
+function submapOf(areaId){ const m=W.maps.find(x=>x.parent===areaId); return m?m.id:null; }
+/* 영역의 모든 하위 장소(하위의 하위 포함) */
+function descendantsOfArea(areaId){
+  if(!areaId) return [];
+  const out=[], seen=new Set();
+  const rec=id=>{ W.places.forEach(p=>{ if(p.parent===id && !seen.has(p.id)){ seen.add(p.id); out.push(p); rec(p.id); } }); };
+  rec(areaId); return out;
+}
+/* 장소 p가 지도 M에 나타날 수 있는가(기본): 자기 홈 지도 + (소속 영역의 홈 지도·하위 지도) + (영역은 자기 하위 지도) */
+function baseVisible(p,M){
+  if(p.mapId===M) return true;
+  const A=areaOf(p);
+  if(A && (A.mapId===M || submapOf(A.id)===M)) return true;
+  if(p.shape==="area" && submapOf(p.id)===M) return true;
+  return false;
+}
+/* 실제 표시 = 기본 가시 AND 해당 지도에서 숨김(hideOn) 처리 안 됨.
+   단, 모든 적용 지도에서 숨겨져 완전히 사라지는 상황이면 숨김을 무시(안전장치) */
+function visibleOnMap(p,M){
+  if(!baseVisible(p,M)) return false;
+  if(p.hideOn && p.hideOn.includes(M)){
+    const appl=applicableMaps(p);
+    if(appl.some(id=>!p.hideOn.includes(id))) return false;  // 다른 지도에서 보이면 여기선 숨김
+    return true;                                             // 전부 숨김이면 숨김 무시(완전 비표시 방지)
+  }
+  return true;
+}
+/* 이 장소가 나타날 수 있는 지도 id 목록 */
+function applicableMaps(p){ return W.maps.filter(m=>baseVisible(p,m.id)).map(m=>m.id); }
+function toggleShowOn(id,mapId,show){
+  const it=findItem(id); if(!it) return;
+  const p=it.ref; p.hideOn=p.hideOn||[];
+  if(show) p.hideOn=p.hideOn.filter(x=>x!==mapId);
+  else if(!p.hideOn.includes(mapId)) p.hideOn.push(mapId);
+  if(p.hideOn.length===0) delete p.hideOn;
+  renderDetail(); renderPins(); markDirty();
+}
+/* 미러(다른 지도에서 온) 표시인지 = 홈 지도가 현재 지도가 아님 */
+function isMirror(p){ return p.mapId!==W.currentMap; }
+function isDescendant(id, ancestorId){
+  let cur=findItem(id); const seen=new Set();
+  while(cur && cur.ref.parent){
+    if(cur.ref.parent===ancestorId) return true;
+    if(seen.has(cur.ref.parent)) break; seen.add(cur.ref.parent);
+    cur=findItem(cur.ref.parent);
+  }
+  return false;
+}
+function setParent(childId,parentId){
+  const it=findItem(childId); if(!it) return;
+  it.ref.parent = parentId || undefined;
+  it.ref.parentManual = true;        // 수동 지정 → 자동 감지 잠금
+  delete it.ref.hideOn;              // 소속 변경 시 지도별 표시 초기화
+  renderLeft(); renderDetail(); renderPins(); markDirty();
+}
+function clearParentManual(id){       // 다시 자동 감지로
+  const it=findItem(id); if(!it) return;
+  delete it.ref.parentManual; autoAssignArea(it.ref);
+  renderLeft(); renderDetail(); renderPins(); markDirty();
+}
+
+function blankMap(name,parent){
+  return {id:uid(), name:name||t("메인 지도"), parent:parent||null,
+    bg:{type:"color",value:"#161821"}, terrain:null, showGrid:true, mapW:4000, mapH:3000};
+}
+function blankWorld(){
+  const m=blankMap();
+  return {meta:{title:t("이름 없는 세계")}, maps:[m], currentMap:m.id, places:[], entities:[], events:[], links:[], graphPos:{}};
+}
+function curMap(){ return W.maps.find(m=>m.id===W.currentMap) || W.maps[0]; }
+/* 구버전(단일 W.map) → 다중 지도 구조로 이관 + 무결성 보정 */
+function migrateMaps(){
+  if(!Array.isArray(W.maps) || W.maps.length===0){
+    const m = (W.map && typeof W.map==="object") ? W.map : blankMap();
+    m.id=m.id||uid(); m.name=m.name||"메인 지도"; m.parent=m.parent||null;
+    if(!m.bg) m.bg={type:"color",value:"#161821"};
+    if(!("showGrid" in m)) m.showGrid=true;
+    W.maps=[m]; W.currentMap=m.id;
+  }
+  if(!W.currentMap || !W.maps.find(m=>m.id===W.currentMap)) W.currentMap=W.maps[0].id;
+  const first=W.maps[0].id;
+  W.places.forEach(p=>{ if(!p.mapId) p.mapId=first; });
+  W.maps.forEach(m=>{ if(!m.mapW) m.mapW=4000; if(!m.mapH) m.mapH=3000; });   // 지도 크기 조절 기능(구버전 파일 보정)
+  delete W.map;
+  ensureSubMaps();     // 모든 면 영역에 하위 지도 보장
+  // 영역-하위지도 이름 동기화(기존 파일 정규화)
+  W.maps.forEach(m=>{ if(m.parent){ const a=W.places.find(p=>p.id===m.parent); if(a) m.name=a.name||"영역"; } });
+}
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+/* places 는 지도 좌표(x,y)+placeType 를 가진 엔티티. entities 는 그 외.
+   events 는 when(시점)을 가진 엔티티. 통일 접근을 위해 헬퍼 사용 */
+function allItems(){
+  return [
+    ...W.places.map(p=>({...p, kind:"place", cat:"place"})),
+    ...W.entities.map(e=>({...e, kind:"entity"})),
+    ...W.events.map(e=>({...e, kind:"event", cat:"event"})),
+  ];
+}
+function findItem(id){
+  let p=W.places.find(x=>x.id===id); if(p) return {ref:p,kind:"place",cat:"place"};
+  let e=W.entities.find(x=>x.id===id); if(e) return {ref:e,kind:"entity",cat:e.cat};
+  let v=W.events.find(x=>x.id===id); if(v) return {ref:v,kind:"event",cat:"event"};
+  return null;
+}
+function itemName(id){ const i=findItem(id); return i?i.ref.name:"?"; }
+function itemCat(id){ const i=findItem(id); return i?i.cat:"concept"; }
+
+/* ============ 좌측 목록 ============ */
+let collapsedCats=new Set();   // 접힌 카테고리 key
+let expandedNodes=new Set();   // 펼쳐진 트리 노드 id (기본은 접힘)
+function toggleCat(key){ collapsedCats.has(key)?collapsedCats.delete(key):collapsedCats.add(key); renderLeft(); }
+function toggleNode(id){ expandedNodes.has(id)?expandedNodes.delete(id):expandedNodes.add(id); renderLeft(); }
+function treeParentId(id){ const it=findItem(id); return it?treeParent({...it.ref,cat:it.cat}):null; }
+function expandAncestors(id){ let cur=treeParentId(id),g=0; while(cur&&g++<60){ expandedNodes.add(cur); cur=treeParentId(cur); } }
+
+function renderLeft(){
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const box = document.getElementById("catList");
+  const en = curLang()==="en";
+  box.innerHTML = "";
+  for(const [key,meta] of Object.entries(CATS)){
+    let items = allItems().filter(i=>i.cat===key);
+    if(q) items = items.filter(i=>(i.name||"").toLowerCase().includes(q)
+        || (i.tags||[]).join(" ").toLowerCase().includes(q));
+    const collapsed = collapsedCats.has(key);
+    const g = document.createElement("div"); g.className="cat-group";
+    g.innerHTML = `<div class="cat-title" onclick="toggleCat('${key}')">
+      <span><span class="cat-tw">${collapsed?"▶":"▼"}</span> ${meta.icon} ${t(meta.label)} (${items.length})</span>
+      <button class="cat-add" title="${en?`Add ${t(meta.label)}`:`${meta.label} 추가`}" onclick="event.stopPropagation();addItem('${key}')">＋</button></div>`;
+    if(!collapsed){
+      if(q){
+        items.forEach(i=>appendItemRow(g,i,0,false,false));   // 검색 중엔 평면
+      } else {
+        const roots=items.filter(i=>{ const p=treeParent(i); return !p || !items.some(x=>x.id===p); });
+        const seen=new Set();
+        const renderNode=(node,depth)=>{
+          if(seen.has(node.id)) return; seen.add(node.id);
+          const kids=items.filter(c=>treeParent(c)===node.id);
+          const expanded=expandedNodes.has(node.id);
+          appendItemRow(g,node,depth,kids.length>0,expanded);
+          if(kids.length && expanded) kids.forEach(c=>renderNode(c,depth+1));
+        };
+        roots.forEach(rt=>renderNode(rt,0));
+      }
+    }
+    box.appendChild(g);
+  }
+}
+function appendItemRow(g,i,depth,hasKids,expanded){
+  const meta=CATS[i.cat];
+  const el=document.createElement("div");
+  el.className="item"+(isSel(i.id)?" sel":"");
+  el.style.paddingLeft=(6+depth*14)+"px";
+  const tog = hasKids
+    ? `<span class="tw" onclick="event.stopPropagation();toggleNode('${i.id}')">${expanded?"▼":"▶"}</span>`
+    : `<span class="tw-empty"></span>`;
+  const mark = (i.shape==="area" ? " ▱" : i.shape==="line" ? " 〰" : i.shape==="label" ? " T" : "")+(i.locked?" 🔒":"");
+  el.innerHTML=`${tog}<span class="dot" style="background:${meta.color}"></span><span class="nm">${esc(i.name||t("(이름없음)"))}${mark}</span>`;
+  el.onclick=()=>selectItem(i.id);
+  g.appendChild(el);
+}
+
+/* ============ 항목 생성/선택 ============ */
+function addItem(cat){
+  const id=uid();
+  if(cat==="place"){
+    // 화면 중앙 좌표에 배치
+    const cx=(-cam.x + document.getElementById("center").clientWidth/2)/cam.z;
+    const cy=(-cam.y + document.getElementById("center").clientHeight/2)/cam.z;
+    const en=curLang()==="en";
+    const place={id,name:en?"New Place":"새 장소",placeType:"도시",x:cx,y:cy,desc:"",tags:[],mapId:W.currentMap};
+    W.places.push(place); autoAssignArea(place);
+    switchView("map");
+  } else if(cat==="event"){
+    W.events.push({id,name:curLang()==="en"?"New Event":"새 사건",cat:"event",when:"",desc:"",tags:[]});
+  } else {
+    W.entities.push({id,name:(curLang()==="en"?"New ":"새 ")+t(CATS[cat].label),cat,desc:"",tags:[]});
+  }
+  selectItem(id);
+  renderAll();
+}
+function selectItem(id, additive){
+  if(additive){
+    if(selSet.has(id)) selSet.delete(id); else selSet.add(id);
+    const arr=[...selSet];
+    sel = arr.length ? {id: (selSet.has(id)? id : arr[arr.length-1])} : null;
+  } else {
+    selSet=new Set([id]); sel={id};
+  }
+  if(sel) expandAncestors(sel.id);   // 선택한 항목이 트리에서 보이도록 상위 펼침
+  renderLeft(); renderDetail(); renderPins(); if(view!=="map") renderView();
+}
+function clearSelection(){ sel=null; selSet.clear(); renderLeft(); renderDetail(); renderPins(); if(view!=="map") renderView(); }
+
+/* ============ 지도 핀 ============ */
+function renderPins(){
+  const box=document.getElementById("pins"); box.innerHTML="";
+  W.places.forEach(p=>{
+    if(!visibleOnMap(p,W.currentMap)) return;   // 현재 지도(및 미러)에 보이는 장소만
+    if(p.shape==="area" || p.shape==="line") return;   // 면·선은 SVG로 따로 그림
+    const el=document.createElement("div");
+    if(p.shape==="label"){
+      el.className="maplabel"+(isSel(p.id)?" sel":"");
+      el.style.left=p.x+"px"; el.style.top=p.y+"px";
+      el.style.fontSize=(p.size||22)+"px";
+      el.style.color=p.color||"#e8ecff";
+      el.textContent=p.name||"텍스트";
+    } else {
+      el.className="pin"+(isSel(p.id)?" sel":"");
+      el.style.left=p.x+"px"; el.style.top=p.y+"px";
+      el.innerHTML=`<div class="head" style="background:${CATS.place.color}"><span>${esc(p.icon||"📍")}</span></div>
+        <div class="label">${esc(p.name||"장소")}</div>`;
+    }
+    enableDrag(el,p);
+    box.appendChild(el);
+  });
+  renderAreas();
+  renderEdges();
+}
+/* 닫힌 부드러운 곡선 경로 (Catmull-Rom → 3차 베지어) */
+function smoothClosedPath(p){
+  const n=p.length; if(n<3) return polyPathD(p,true);
+  let d=`M ${p[0].x} ${p[0].y} `;
+  for(let i=0;i<n;i++){
+    const p0=p[(i-1+n)%n], p1=p[i], p2=p[(i+1)%n], p3=p[(i+2)%n];
+    const c1x=p1.x+(p2.x-p0.x)/6, c1y=p1.y+(p2.y-p0.y)/6;
+    const c2x=p2.x-(p3.x-p1.x)/6, c2y=p2.y-(p3.y-p1.y)/6;
+    d+=`C ${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y} `;
+  }
+  return d+"Z";
+}
+/* 열린 부드러운 곡선 (그리는 중 미리보기용) */
+function smoothOpenPath(p){
+  const n=p.length; if(n<3) return "M "+p.map(pt=>`${pt.x} ${pt.y}`).join(" L ");
+  let d=`M ${p[0].x} ${p[0].y} `;
+  for(let i=0;i<n-1;i++){
+    const p0=p[Math.max(i-1,0)], p1=p[i], p2=p[i+1], p3=p[Math.min(i+2,n-1)];
+    const c1x=p1.x+(p2.x-p0.x)/6, c1y=p1.y+(p2.y-p0.y)/6;
+    const c2x=p2.x-(p3.x-p1.x)/6, c2y=p2.y-(p3.y-p1.y)/6;
+    d+=`C ${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y} `;
+  }
+  return d;
+}
+function polyPathD(pts,close){ return "M "+pts.map(pt=>`${pt.x} ${pt.y}`).join(" L ")+(close?" Z":""); }
+/* 점-선분 거리 */
+function segDist(p,a,b){ const dx=b.x-a.x, dy=b.y-a.y;
+  if(dx===0&&dy===0) return Math.hypot(p.x-a.x,p.y-a.y);
+  let t=((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy); t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p.x-(a.x+t*dx), p.y-(a.y+t*dy)); }
+/* Douglas–Peucker 단순화: 모양을 유지하며 꼭짓점 수를 줄임 */
+function simplifyPoly(pts, tol){
+  if(!pts || pts.length<3) return (pts||[]).slice();
+  const keep=new Array(pts.length).fill(false);
+  keep[0]=keep[pts.length-1]=true;
+  const stack=[[0,pts.length-1]];
+  while(stack.length){ const [s,e]=stack.pop(); let maxD=0, idx=-1;
+    for(let i=s+1;i<e;i++){ const d=segDist(pts[i],pts[s],pts[e]); if(d>maxD){ maxD=d; idx=i; } }
+    if(maxD>tol && idx>0){ keep[idx]=true; stack.push([s,idx]); stack.push([idx,e]); } }
+  return pts.filter((_,i)=>keep[i]);
+}
+function ringPath(pts,curve){ return curve ? smoothClosedPath(pts) : polyPathD(pts,true); }
+function areaPathD(p){
+  let d = ringPath(p.points, p.curve);
+  if(p.holes) p.holes.forEach(h=>{ if(h && h.length>=3) d+=" "+ringPath(h, p.curve); });
+  return d;   // fill-rule:evenodd 로 구멍이 도려내짐
+}
+/* 점이 영역 내부인가 (구멍 안이면 제외) */
+function inArea(x,y,a){
+  if(!pointInPoly(x,y,a.points)) return false;
+  if(a.holes) for(const h of a.holes){ if(h && h.length>=3 && pointInPoly(x,y,h)) return false; }
+  return true;
+}
+
+function renderAreas(){
+  const svg=document.getElementById("areas"); let s="";
+  W.places.forEach(p=>{
+    if(!visibleOnMap(p,W.currentMap)) return;   // 현재 지도(및 미러)에 보이는 것만
+    if(!p.points || p.points.length<2) return;
+    const col=p.color||"#7aa2f7";
+    const on=isSel(p.id);
+    if(p.shape==="line"){
+      const d = p.curve ? smoothOpenPath(p.points) : polyPathD(p.points,false);
+      s+=`<path data-id="${p.id}" d="${d}" fill="none" stroke="${col}" stroke-width="${(p.width||3)+(on?2:0)}"
+        stroke-linecap="round" stroke-linejoin="round" ${on?'stroke-dasharray="1 0"':''} opacity="${on?1:0.9}"/>`;
+      return;
+    }
+    if(p.shape!=="area") return;
+    s+=`<path data-id="${p.id}" d="${areaPathD(p)}" fill="${col}" fill-opacity="${on?0.40:0.22}" fill-rule="evenodd"
+      stroke="${col}" stroke-width="${on?4:2.5}" stroke-linejoin="round"/>`;
+    const c=placeAnchor(p);
+    s+=`<text class="area-label" x="${c.x}" y="${c.y}">${esc(p.name||"지역")}</text>`;
+  });
+  // 그리는 중 미리보기 (곡선)
+  if(drawPoly && drawPoly.length){
+    const d=smoothOpenPath(drawPoly.concat(previewPt?[previewPt]:[]));
+    s+=`<path d="${d}" fill="rgba(122,162,247,0.15)" stroke="#7aa2f7" stroke-width="3" stroke-dasharray="9 6"/>`;
+  }
+  // 선택된 영역·선의 꼭짓점 편집 핸들 (단일 선택, pan, 미러 아님)
+  const editP = (tool==="pan" && sel && selSet.size<=1) ? W.places.find(x=>x.id===sel.id) : null;
+  if(editP && (editP.shape==="area"||editP.shape==="line") && editP.points && !isMirror(editP) && !editP.locked && visibleOnMap(editP,W.currentMap)){
+    const hr=7/cam.z, mr=5/cam.z, sw=2/cam.z;
+    const ringH=(ring,closed,hole)=>{ const n=ring.length, segs=closed?n:n-1; let out="";
+      for(let i=0;i<segs;i++){ const a=ring[i], b=ring[(i+1)%n];
+        out+=`<circle class="vh mid" data-id="${editP.id}" data-hole="${hole}" data-mi="${i}" cx="${(a.x+b.x)/2}" cy="${(a.y+b.y)/2}" r="${mr}" stroke-width="${sw}"/>`; }
+      ring.forEach((pt,i)=>{ out+=`<circle class="vh${hole>=0?' hole':''}" data-id="${editP.id}" data-hole="${hole}" data-i="${i}" cx="${pt.x}" cy="${pt.y}" r="${hr}" stroke-width="${sw}"/>`; });
+      return out; };
+    s+=ringH(editP.points, editP.shape==="area", -1);
+    if(editP.holes) editP.holes.forEach((h,hi)=>{ if(h && h.length>=2) s+=ringH(h,true,hi); });
+  }
+  svg.innerHTML=s;
+  // 면·선 드래그 이동 핸들러
+  svg.querySelectorAll("path[data-id]").forEach(el=>{
+    const p=W.places.find(x=>x.id===el.getAttribute("data-id"));
+    if(p) enableDrag(el,p);
+  });
+  // 꼭짓점 편집 핸들러 (외곽 링 hole=-1, 구멍 링 hole>=0)
+  svg.querySelectorAll("circle.vh").forEach(h=>{
+    const pl=W.places.find(x=>x.id===h.dataset.id); if(!pl) return;
+    const hole=+h.dataset.hole;
+    const ringOf=()=> hole<0 ? pl.points : (pl.holes && pl.holes[hole]);
+    if(h.classList.contains("mid")){
+      h.addEventListener("pointerdown",e=>{ e.stopPropagation();
+        const ring=ringOf(); if(!ring) return; const i=+h.dataset.mi, a=ring[i], b=ring[(i+1)%ring.length];
+        ring.splice(i+1,0,{x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+        if(hole<0) autoAssignArea(pl); renderPins(); markDirty(); });
+    } else {
+      const i=+h.dataset.i;
+      h.addEventListener("pointerdown",e=>{ e.stopPropagation();
+        const ring=ringOf(); if(!ring) return; const ox=ring[i].x, oy=ring[i].y, sx=e.clientX, sy=e.clientY; let moved=false;
+        const mv=ev=>{ const dx=(ev.clientX-sx)/cam.z,dy=(ev.clientY-sy)/cam.z; if(Math.abs(dx)+Math.abs(dy)>1)moved=true;
+          ring[i]={x:ox+dx,y:oy+dy}; renderPins(); };
+        const up=()=>{ window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up);
+          if(moved){ if(hole<0) autoAssignArea(pl); markDirty(); } };
+        window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up); });
+      h.addEventListener("dblclick",e=>{ e.stopPropagation();
+        const ring=ringOf(); if(!ring) return;
+        if(hole>=0 && ring.length<=3){ pl.holes.splice(hole,1); if(!pl.holes.length) delete pl.holes; renderPins(); markDirty(); return; }
+        const min = pl.shape==="line"?2:3;
+        if(ring.length>min){ ring.splice(i,1); if(hole<0) autoAssignArea(pl); renderPins(); markDirty(); } });
+    }
+  });
+}
+function placeIcon(t){
+  const m={"도시":"🏙️","마을":"🏘️","수도":"👑","성/요새":"🏰","던전":"🗝️","성지":"⛩️","자연":"🏔️","지역":"🗺️"};
+  return m[t]||"📍";
+}
+/* 이동 대상: 선택된 장소들 + (영역이면 그 자손들), 미러 영역은 제외 */
+function collectMoveTargets(){
+  const ids=new Set();
+  selSet.forEach(id=>{ ids.add(id); const p=W.places.find(x=>x.id===id);
+    if(p && p.shape==="area") descendantsOfArea(id).forEach(k=>ids.add(k.id)); });
+  return [...ids].map(id=>W.places.find(p=>p.id===id))
+    .filter(p=>p && !p.locked && !(p.shape==="area" && isMirror(p)));
+}
+/* 핀·라벨·영역·선 공용 드래그 (Ctrl/Shift 클릭 다중선택, 다중 이동 지원) */
+function enableDrag(el,p){
+  el.addEventListener("pointerdown",e=>{
+    if(tool!=="pan") return;
+    e.stopPropagation();
+    const additive = e.ctrlKey||e.metaKey||e.shiftKey;
+    if(isMirror(p) && p.shape==="area"){ selectItem(p.id, additive); return; }  // 미러 영역 잠금
+    if(p.locked){ selectItem(p.id, additive); return; }                          // 잠긴 항목은 선택만
+    if(!additive && !selSet.has(p.id)){ selSet=new Set([p.id]); sel={id:p.id}; renderPins(); }
+    const multi = selSet.has(p.id) && selSet.size>1;
+    let targets = multi ? collectMoveTargets()
+      : (p.shape==="area" ? [p, ...descendantsOfArea(p.id)] : [p]);
+    const orig=targets.map(t=>({p:t, pts:t.points?t.points.map(q=>({x:q.x,y:q.y})):null, x:t.x, y:t.y,
+      holes: t.holes? t.holes.map(h=>h.map(q=>({x:q.x,y:q.y}))) : null}));
+    let moved=false, sx=e.clientX, sy=e.clientY;
+    const mv=ev=>{
+      const dx=(ev.clientX-sx)/cam.z, dy=(ev.clientY-sy)/cam.z;
+      if(Math.abs(dx)+Math.abs(dy)>3) moved=true;
+      orig.forEach(o=>{ if(o.pts){ o.p.points=o.pts.map(q=>({x:q.x+dx,y:q.y+dy}));
+          if(o.holes) o.p.holes=o.holes.map(h=>h.map(q=>({x:q.x+dx,y:q.y+dy}))); }
+        else { o.p.x=o.x+dx; o.p.y=o.y+dy; } });
+      renderPins();
+    };
+    const up=()=>{ window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up);
+      if(!moved) selectItem(p.id, additive);
+      else { targets.forEach(t=>autoAssignArea(t)); markDirty(); } };
+    window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+  });
+}
+/* 선택된 항목과 연결된 장소들 사이 선 그리기 */
+function renderEdges(){
+  const svg=document.getElementById("edges"); svg.innerHTML="";
+  const draw=(a,b,color)=>{
+    const l=document.createElementNS("http://www.w3.org/2000/svg","line");
+    l.setAttribute("x1",a.x);l.setAttribute("y1",a.y);l.setAttribute("x2",b.x);l.setAttribute("y2",b.y);
+    l.setAttribute("stroke",color);l.setAttribute("stroke-width","2");l.setAttribute("stroke-dasharray","6 5");
+    l.setAttribute("opacity","0.7"); svg.appendChild(l);
+  };
+  // 현재 지도에 있는 장소만 대상으로
+  const onMap=id=>{ const p=W.places.find(x=>x.id===id); return (p&&visibleOnMap(p,W.currentMap))?p:null; };
+  // 장소끼리의 링크는 항상 옅게
+  W.links.forEach(k=>{
+    const A=onMap(k.from), B=onMap(k.to);
+    if(A&&B) draw(placeAnchor(A),placeAnchor(B),"#3b4160");
+  });
+  // 선택된 항목이 있으면 연결된 장소를 강조
+  if(sel){
+    const linkedPlaceIds = linksOf(sel.id).map(l=>l.other).filter(onMap);
+    const selPlace = onMap(sel.id);
+    if(selPlace){
+      linkedPlaceIds.forEach(id=>{const B=onMap(id); if(B) draw(placeAnchor(selPlace),placeAnchor(B),"#7aa2f7");});
+    } else if(linkedPlaceIds.length>1){
+      // 비장소 항목: 연결된 장소들을 서로 잇기
+      for(let i=0;i<linkedPlaceIds.length;i++)for(let j=i+1;j<linkedPlaceIds.length;j++){
+        const A=onMap(linkedPlaceIds[i]),B=onMap(linkedPlaceIds[j]);
+        if(A&&B) draw(placeAnchor(A),placeAnchor(B),"#bb9af7");
+      }
+    }
+  }
+}
+
+/* ============ 링크(관계) ============
+   링크 구조: {from, to, rel, relBack?}
+   - relBack 없음 = 단일(단방향) 관계  (from --rel--> to)
+   - relBack 있음 = 양방향 복합 관계    (from --rel--> to, to --relBack--> from)
+*/
+function linksOf(id){
+  return W.links.map(l=>{
+    if(l.from===id) return {other:l.to,   label:l.rel,               out:true,           raw:l};
+    if(l.to===id)   return {other:l.from, label:(l.relBack||l.rel),  out:!!l.relBack,    raw:l};
+    return null;
+  }).filter(Boolean);
+}
+function addLink(fromId){
+  const others=allItems().filter(i=>i.id!==fromId
+    && !W.links.some(l=>(l.from===fromId&&l.to===i.id)||(l.to===fromId&&l.from===i.id)));
+  if(others.length===0){ appAlert(t("연결할 다른 항목이 없습니다. 먼저 항목을 추가해 주세요.")); return; }
+  const opts=others.map(i=>`<option value="${i.id}">${CATS[i.cat].icon} ${esc(i.name)}</option>`).join("");
+  const fromName=esc(itemName(fromId)), en=curLang()==="en";
+  openModal(`<h2>${t("관계 연결")}</h2>
+    <label class="fl">${t("연결할 항목")}</label>
+    <select class="f" id="mTarget">${opts}</select>
+
+    <label class="fl">${t("관계 방식")}</label>
+    <select class="f" id="mMode" onchange="onModeChange()">
+      <option value="single">${t("단일 관계 (한 방향)")}</option>
+      <option value="dual">${t("양방향 복합 (방향마다 다르게)")}</option>
+    </select>
+
+    <label class="fl" id="lbl1">${en?`Relation (${fromName} → other)`:`관계 (${fromName} → 상대)`}</label>
+    <input class="f" id="mRel" placeholder="${t("예: 증오, 출신, 소속, 발생지")}">
+
+    <div id="backWrap" style="display:none">
+      <label class="fl">${en?`Reverse (other → ${fromName})`:`반대 방향 (상대 → ${fromName})`}</label>
+      <input class="f" id="mRelBack" placeholder="${t("예: 사랑, 보호, 추종")}">
+    </div>
+
+    <div class="mrow">
+      <button class="btn" onclick="closeModal()">${t("취소")}</button>
+      <button class="btn primary" onclick="confirmLink('${fromId}')">${t("연결")}</button>
+    </div>`);
+}
+function onModeChange(){
+  const dual=document.getElementById("mMode").value==="dual";
+  document.getElementById("backWrap").style.display=dual?"block":"none";
+  document.getElementById("lbl1").textContent=dual?t("정방향 (이 항목 → 상대)"):t("관계 (한 방향)");
+}
+function confirmLink(fromId){
+  const to=document.getElementById("mTarget").value;
+  const rel=document.getElementById("mRel").value.trim()||(curLang()==="en"?"linked":"연결됨");
+  const link={from:fromId,to,rel};
+  if(document.getElementById("mMode").value==="dual"){
+    link.relBack=document.getElementById("mRelBack").value.trim()||(curLang()==="en"?"linked":"연결됨");
+  }
+  W.links.push(link);
+  closeModal(); renderDetail(); renderPins(); if(view!=="map") renderView(); markDirty();
+}
+
+/* ============ 우측 상세 ============ */
+function renderDetail(){
+  const box=document.getElementById("detail");
+  if(!sel){ box.innerHTML=""; return; }
+  const it=findItem(sel.id);
+  if(!it){ sel=null; return renderDetail(); }
+  const r=it.ref, meta=CATS[it.cat], en=curLang()==="en";
+  let html="";
+  if(selSet.size>1) html+=`<div class="fhint" style="margin-bottom:10px">${en?`${selSet.size} selected · drag to move together.`:`${selSet.size}개 선택됨 · 드래그하면 함께 이동합니다.`}</div>`;
+  html+=`<div class="det-head">
+      <span class="det-badge" style="background:${meta.color}">${meta.icon} ${t(meta.label)}</span>
+    </div>
+    <label class="fl">${t("이름")}</label>
+    <input class="f" value="${esc(r.name||"")}" oninput="upd('name',this.value)">`;
+  html+=`<div class="det-img-btns" style="margin:6px 0 2px">
+    <button class="btn" onclick="aiExpand('${sel.id}')">${t("✨ 설명 확장")}</button>
+    <button class="btn" onclick="aiSuggestRelations('${sel.id}')">${t("🔗 관계 제안")}</button></div>`;
+  // 상위 항목(계층) — 같은 카테고리에서, 자기 자신과 자손은 제외
+  const parentChoices=allItems().filter(i=>i.cat===it.cat && i.id!==sel.id && !isDescendant(i.id, sel.id));
+  html+=`<label class="fl">${t("상위 항목 (계층)")}</label>
+    <select class="f" onchange="setParent('${sel.id}',this.value)">
+      <option value="">${t("(최상위)")}</option>
+      ${parentChoices.map(i=>`<option value="${i.id}" ${r.parent===i.id?"selected":""}>${esc(i.name||t("(이름없음)"))}</option>`).join("")}
+    </select>`;
+  if(it.kind==="place"){
+    const A=areaOf(r);
+    const info = r.parentManual ? t("수동 지정됨") : (A ? (en?`Auto · in ${esc(A.name)}`:`자동 · ${esc(A.name)} 안`) : t("자동 감지 (포함 영역 없음)"));
+    html+=`<div class="fhint">${en?"Area":"소속 영역"} — ${info}${r.parentManual?` · <a class="wlink" onclick="clearParentManual('${sel.id}')">${t("자동으로 되돌리기")}</a>`:""}</div>`;
+  }
+  // 이미지 첨부
+  html+=`<label class="fl">${t("이미지")}</label><div class="det-img">`;
+  if(r.image){
+    const fit=r.imgFit||"cover", h=r.imgH||200, pos=r.imgPos||"50% 50%";
+    html+=`<div class="img-frame" id="imgFrame" style="height:${h}px">
+      <img id="detImg" src="${r.image}" draggable="false" style="object-fit:${fit};object-position:${pos}">
+    </div>
+    <div class="img-ctrls">
+      <button class="btn mini" onclick="setImgFit('${fit==="cover"?"contain":"cover"}')">${fit==="cover"?t("전체 보기"):t("채우기")}</button>
+      <label class="mini-l">${t("높이")}<input type="range" min="120" max="480" value="${h}" oninput="setImgH(this.value)"></label>
+    </div>
+    ${fit==="cover"?`<div class="fhint">${t("이미지를 드래그하여 보이는 부분을 조절합니다.")}</div>`:""}`;
+  }
+  html+=`<label class="pngchk"><input type="checkbox" ${keepPng?"checked":""} onchange="keepPng=this.checked"> ${t("PNG(투명 배경) 유지")}</label>
+    <div class="det-img-btns">
+      <button class="btn" onclick="pickItemImage('${sel.id}')">${r.image?t("이미지 변경"):t("이미지 추가")}</button>
+      ${r.image?`<button class="btn" onclick="removeItemImage('${sel.id}')">${t("제거")}</button>`:""}
+    </div></div>`;
+  if(it.kind==="place"){
+    if(r.shape==="line"){
+      let len=0; const pts=r.points||[]; for(let k=0;k<pts.length-1;k++) len+=Math.hypot(pts[k+1].x-pts[k].x,pts[k+1].y-pts[k].y);
+      html+=`<label class="fl">${t("선 색상")}</label>
+        <input type="color" class="f" style="height:38px" value="${r.color||'#7dcfff'}" oninput="upd('color',this.value)">
+        <label class="fl">${t("선 굵기")}</label>
+        <input type="range" class="f" min="1" max="20" value="${r.width||3}" oninput="upd('width',+this.value);renderPins()">
+        <div class="fhint">${en?"Length":"길이"}: ${esc(fmtDist(len))}</div>`;
+    } else if(r.shape==="label"){
+      html+=`<label class="fl">${t("글자 크기")}</label>
+        <input type="range" class="f" min="10" max="72" value="${r.size||22}" oninput="upd('size',+this.value);renderPins()">
+        <label class="fl">${t("글자 색상")}</label>
+        <input type="color" class="f" style="height:38px" value="${r.color||'#e8ecff'}" oninput="upd('color',this.value)">`;
+    } else {
+      if(!r.shape || r.shape==="point"){
+        const icons=["📍","👑","🏰","🏙️","🏘️","🗝️","⛩️","🏔️","🌋","🌲","⚓","⚔️","💎","🏛️","🕍","🛖","🌀","☠️","🔥","❄️","⭐"];
+        html+=`<label class="fl">${t("마커 아이콘")}</label>
+          <div class="icon-row">${icons.map(ic=>`<button class="icon-b" onclick="upd('icon','${ic}')">${ic}</button>`).join("")}
+            <button class="icon-b" title="${t("기본 아이콘으로")}" onclick="upd('icon','')">↺</button></div>
+          <input class="f" value="${esc(r.icon||"")}" placeholder="${t("또는 이모지 직접 입력")}" oninput="upd('icon',this.value)">`;
+      }
+      if(r.shape==="area"){
+        html+=`<label class="fl">${en?`Area color (${(r.points||[]).length} vertices)`:`영역 색상 (꼭짓점 ${(r.points||[]).length}개)`}</label>
+          <input type="color" class="f" style="height:38px" value="${r.color||'#7aa2f7'}" oninput="upd('color',this.value)">
+          <label class="fl">${en?`Holes (${(r.holes||[]).length})`:`구멍 (${(r.holes||[]).length}개)`}</label>
+          <div class="det-img-btns">
+            <button class="btn" onclick="startHoleMode('${sel.id}')">${t("＋ 구멍 그리기")}</button>
+            ${(r.holes&&r.holes.length)?`<button class="btn" onclick="clearHoles('${sel.id}')">${t("모두 지우기")}</button>`:""}
+          </div>
+          <div class="fhint">${t("구멍 꼭짓점은 더블클릭으로 지우며, 링이 3개 미만이 되면 그 구멍이 삭제됩니다.")}</div>`;
+      }
+    }
+  }
+  if(it.kind==="event"){
+    html+=`<label class="fl">${t("시점 (자유 형식: 예 '제국력 342년')")}</label>
+      <input class="f" value="${esc(r.when||"")}" oninput="upd('when',this.value)">`;
+  }
+  html+=`<label class="fl">${t("설명")}</label>
+    <div class="wiki-view" id="wikiView" onclick="editDesc()">${r.desc?renderWiki(r.desc):`<span class="wiki-empty">${t("클릭하여 설명 입력…")}</span>`}</div>
+    <textarea class="f" id="descEdit" style="display:none" placeholder="${t("설정 내용을 입력하세요.")}" oninput="updDesc(this.value)" onblur="doneDesc()">${esc(r.desc||"")}</textarea>
+    <div class="fhint">${t("[[이름]] 형식으로 입력하면 해당 항목으로 자동 연결됩니다.")}</div>
+    <label class="fl">${t("태그 (쉼표로 구분)")}</label>
+    <input class="f" value="${esc((r.tags||[]).join(", "))}" oninput="updTags(this.value)">
+    <div>${(r.tags||[]).map(tg=>`<span class="tag">#${esc(tg)}</span>`).join("")}</div>`;
+
+  // 연결 목록
+  const links=linksOf(sel.id);
+  html+=`<div class="sect"><h3>${en?`Links (${links.length})`:`연결된 항목 (${links.length})`}
+      <button class="btn" style="padding:3px 10px" onclick="addLink('${sel.id}')">${t("＋ 연결")}</button></h3>`;
+  links.forEach(l=>{
+    const c=CATS[itemCat(l.other)];
+    const arrow=l.out?"→":"←";                       // → 이 항목이 상대에게 / ← 상대가 이 항목에게
+    const dual=!!l.raw.relBack?" ⇄":"";
+    html+=`<div class="link-row"><span class="dot" style="background:${c.color}"></span>
+      <span class="nm" onclick="selectItem('${l.other}')">${esc(itemName(l.other))}</span>
+      <span class="rel">${arrow} ${esc(l.label)}${dual}</span>
+      <button class="x" onclick='removeLinkById("${l.raw.from}","${l.raw.to}")'>✕</button></div>`;
+  });
+  html+=`</div>`;
+
+  // 하위 항목(자식)
+  const kids=childrenOf(sel.id);
+  if(kids.length){
+    html+=`<div class="sect"><h3>${en?`Children (${kids.length})`:`하위 항목 (${kids.length})`}</h3>`;
+    kids.forEach(k=>{ const c=CATS[k.cat];
+      html+=`<div class="link-row"><span class="dot" style="background:${c.color}"></span>
+        <span class="nm" onclick="selectItem('${k.id}')">${esc(k.name||t("(이름없음)"))}${k.shape==="area"?" ▱":""}</span></div>`;
+    });
+    html+=`</div>`;
+  }
+
+  // 백링크: 이 항목을 설명에서 [[이름]]으로 언급한 곳
+  const backs=backlinksOf(sel.id);
+  if(backs.length){
+    html+=`<div class="sect"><h3>${en?`Mentioned in (${backs.length})`:`언급된 곳 (${backs.length})`}</h3>`;
+    backs.forEach(b=>{ const c=CATS[b.cat];
+      html+=`<div class="link-row"><span class="dot" style="background:${c.color}"></span>
+        <span class="nm" onclick="selectItem('${b.id}')">${esc(b.name||t("(이름없음)"))}</span></div>`;
+    });
+    html+=`</div>`;
+  }
+
+  if(it.kind==="place"){
+    html+=`<label class="pngchk" style="margin-top:10px"><input type="checkbox" ${r.locked?"checked":""} onchange="toggleLock('${sel.id}',this.checked)"> ${t("🔒 위치 잠금 (이동·편집 방지)")}</label>`;
+    const maps=applicableMaps(r);
+    if(maps.length>1){
+      html+=`<div class="sect"><h3>${t("지도별 마커 표시")}</h3>`;
+      maps.forEach(mid=>{ const mp=W.maps.find(x=>x.id===mid);
+        const shown=!(r.hideOn&&r.hideOn.includes(mid));
+        html+=`<label class="pngchk"><input type="checkbox" ${shown?"checked":""} onchange="toggleShowOn('${sel.id}','${mid}',this.checked)"> ${esc(mp?mp.name:"?")}</label>`;
+      });
+      html+=`</div>`;
+    }
+    html+=`<button class="btn" style="width:100%;margin-top:8px" onclick="focusPlace('${r.id}')">${t("지도에서 보기")}</button>`;
+  }
+  html+=`<button class="del-btn" onclick="delItem('${sel.id}')">${t("항목 삭제")}</button>`;
+  box.innerHTML=html;
+  attachImgDrag();
+}
+function removeLinkById(from,to){
+  W.links=W.links.filter(l=>!(l.from===from&&l.to===to));
+  renderDetail(); renderPins(); if(view!=="map") renderView(); markDirty();
+}
+/* 면 영역의 이름을 그 하위 지도 이름과 동기화 */
+function syncMapName(place){
+  if(!place || place.shape!=="area") return;
+  const m=W.maps.find(x=>x.parent===place.id);
+  if(m) m.name = place.name || "영역";
+}
+function upd(field,val){ const it=findItem(sel.id); if(it){it.ref[field]=val;
+  if(field==="name"){ syncMapName(it.ref); renderMapBar(); }
+  renderLeft(); renderPins(); if(view!=="map")renderView(); markDirty();} }
+function updTags(val){ const it=findItem(sel.id); if(it){it.ref.tags=val.split(",").map(s=>s.trim()).filter(Boolean); renderLeft(); markDirty();} }
+function delItem(id){
+  appConfirm(t("이 항목을 삭제하시겠습니까? 연결된 관계도 함께 삭제됩니다."), ()=>{
+    W.places=W.places.filter(x=>x.id!==id);
+    W.entities=W.entities.filter(x=>x.id!==id);
+    W.events=W.events.filter(x=>x.id!==id);
+    W.links=W.links.filter(l=>l.from!==id&&l.to!==id);
+    // 이 항목을 부모로 삼던 자식들은 최상위로 올림
+    [...W.places,...W.entities,...W.events].forEach(x=>{ if(x.parent===id) x.parent=undefined; });
+    cleanupOrphanMaps();   // 삭제된 영역의 하위 지도 정리
+    sel=null; applyMap(); loadTerrain(); renderMapBar(); renderAll();
+  });
+}
+
+/* ============ 지도 카메라 & 도구 ============ */
+const wrap=document.getElementById("mapWrap");
+const canvas=document.getElementById("terrain");
+const ctx=canvas.getContext("2d");
+const baseCanvas=document.getElementById("terrainBase");
+const baseCtx=baseCanvas.getContext("2d");
+
+function applyCam(){
+  document.getElementById("viewport").style.transform=`translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
+  document.getElementById("zoomInfo").textContent=Math.round(cam.z*100)+"%";
+  renderScaleBar();
+}
+/* 배율 표시(우하단) 클릭 → 화면 중심을 유지하며 기본 배율(설정값·기본 100%)로 복귀 */
+function resetZoom(){
+  const dz=appSettings().defZoom;
+  const target=Math.max(0.2,Math.min(3,((typeof dz==="number"&&dz>0)?dz:100)/100));
+  if(cam.z===target) return;
+  const rect=wrap.getBoundingClientRect(), mx=rect.width/2, my=rect.height/2;
+  const wx=(mx-cam.x)/cam.z, wy=(my-cam.y)/cam.z;
+  cam.z=target; cam.x=mx-wx*cam.z; cam.y=my-wy*cam.z; applyCam();
+}
+function worldPt(e){
+  const rect=wrap.getBoundingClientRect();
+  return {x:(e.clientX-rect.left-cam.x)/cam.z, y:(e.clientY-rect.top-cam.y)/cam.z};
+}
+
+/* 도구 전환. opts.keepDraw:true 면 area/hole을 벗어나도 drawPoly 등을 지우지 않음
+   (구멍 확정 전 옵션 모달을 띄우는 동안 그려둔 도형을 유지하기 위함) */
+function setTool(t,opts){
+  if(!(opts&&opts.keepDraw) && (tool==="area"||tool==="hole") && t!=="area" && t!=="hole") cancelArea();   // 그리다 다른 도구로 가면 취소
+  if(t!=="measure"){ measureLine=null; renderMeasure(); }   // 측정 도구 벗어나면 측정선 지움
+  tool=t;
+  document.querySelectorAll(".tbtn[data-tool]").forEach(b=>b.classList.toggle("active",b.dataset.tool===t));
+  document.getElementById("brushPanel").style.display=(t==="brush"||t==="erase")?"block":"none";
+  document.getElementById("simplifyPanel").style.display=(t==="area"||t==="line"||t==="hole")?"block":"none";
+  document.getElementById("areaControls").style.display=(t==="area")?"flex":"none";
+  // pan 모드에서만 핀/폴리곤 선택 가능, 나머지 모드에선 맵이 클릭을 받도록
+  document.getElementById("pins").style.pointerEvents=(t==="pan")?"auto":"none";
+  document.getElementById("areas").classList.toggle("locked", t!=="pan");
+  document.getElementById("mapResize").style.display=(t==="pan")?"block":"none";
+  wrap.classList.toggle("placing",t==="place");
+  wrap.style.cursor = t==="pan" ? "grab" : "crosshair";
+}
+document.querySelectorAll(".tbtn[data-tool]").forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+
+/* 브러시 색/굵기 */
+const SWATCHES=[["#2b5d8a","바다"],["#4a7c3f","육지"],["#2f5233","숲"],["#6b5b4a","산"],
+  ["#c2a878","사막"],["#dfe7f0","설원"],["#b5341a","용암"],["#41506b","늪"]];
+function buildSwatches(){
+  const box=document.getElementById("swatches"); box.innerHTML="";
+  SWATCHES.forEach(([c,name])=>{
+    const d=document.createElement("div"); d.className="sw"+(c===brushColor?" sel":"");
+    d.style.background=c; d.innerHTML=`<span>${t(name)}</span>`;
+    d.onclick=()=>{ setBrushColor(c); document.getElementById("brushColor").value=c; if(tool==="erase")setTool("brush"); };
+    box.appendChild(d);
+  });
+}
+function setBrushColor(c){ brushColor=c;
+  document.querySelectorAll(".sw").forEach(s=>s.classList.toggle("sel",rgbEq(s.style.background,c)));
+}
+function rgbEq(a,b){ return a.replace(/\s/g,"").toLowerCase()===hexToRgb(b); }
+function hexToRgb(h){ const n=parseInt(h.slice(1),16); return `rgb(${(n>>16)&255},${(n>>8)&255},${n&255})`; }
+
+/* 지형 그리기 */
+function startDraw(e){
+  const p=worldPt(e);
+  ctx.globalCompositeOperation = tool==="erase" ? "destination-out" : "source-over";
+  ctx.strokeStyle=brushColor; ctx.fillStyle=brushColor;
+  ctx.lineWidth=brushSize; ctx.lineCap="round"; ctx.lineJoin="round";
+  ctx.beginPath(); ctx.arc(p.x,p.y,brushSize/2,0,Math.PI*2); ctx.fill(); // 시작점 점 찍기
+  let last=p;
+  const mv=ev=>{ const q=worldPt(ev);
+    ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(q.x,q.y); ctx.stroke(); last=q; };
+  const up=()=>{ window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up); markDirty(); };
+  window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+}
+function startPan(e){
+  wrap.classList.add("grabbing");
+  const sx=e.clientX,sy=e.clientY,ox=cam.x,oy=cam.y; let moved=false;
+  const mv=ev=>{ if(Math.abs(ev.clientX-sx)+Math.abs(ev.clientY-sy)>3) moved=true;
+    cam.x=ox+(ev.clientX-sx); cam.y=oy+(ev.clientY-sy); applyCam();};
+  const up=()=>{wrap.classList.remove("grabbing"); window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up);
+    if(!moved && (sel||selSet.size)) clearSelection(); };   // 빈 곳 클릭 시 선택 해제
+  window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+}
+wrap.addEventListener("pointerdown",e=>{
+  // 맵 위에 떠 있는 UI(툴바·패널·버튼 등) 클릭은 맵 조작으로 처리하지 않음
+  if(e.target.closest("#mapToolbar,#mapBar,#brushPanel,#areaControls,#mapTools,#mapHint,#zoomInfo")) return;
+  if(tool==="area"){ startAreaDraw(e); return; }
+  if(tool==="hole"){ startHoleDraw(e); return; }
+  if(tool==="line"){ startLineDraw(e); return; }
+  if(tool==="label"){ placeLabel(e); return; }
+  if(tool==="measure"){ startMeasure(e); return; }
+  if(tool==="place"){ placeAt(e); return; }
+  if(tool==="brush"||tool==="erase"){ startDraw(e); return; }
+  if(e.target.closest(".pin, .maplabel")) return;  // 핀·라벨은 자체 드래그 처리
+  startPan(e);
+});
+window.addEventListener("keydown",e=>{
+  if(e.key==="Escape" && drawPoly && document.getElementById("modal").style.display!=="flex") cancelArea();
+});
+
+/* ============ 영역(면) 자유곡선 그리기 ============
+   커서를 드래그하는 경로를 따라 점을 샘플링해 부드러운 곡선 영역을 만든다. */
+function startAreaDraw(e){
+  drawPoly=[worldPt(e)]; previewPt=null;
+  const mv=ev=>{
+    const p=worldPt(ev);
+    const last=drawPoly[drawPoly.length-1];
+    if(Math.hypot(p.x-last.x,p.y-last.y) > 9/cam.z){ drawPoly.push(p); renderAreas(); }
+  };
+  const up=()=>{
+    window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up);
+    finishFreeArea();
+  };
+  window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+}
+function finishFreeArea(){
+  if(!drawPoly || drawPoly.length<3){ drawPoly=null; previewPt=null; renderAreas(); return; }
+  const id=uid();
+  const simp=(simplifyStrength>0?simplifyPoly(drawPoly, simplifyStrength/cam.z):drawPoly.slice());
+  const area={id,name:(curLang()==="en"?"New Area":"새 지역"),placeType:"지역",shape:"area",curve:true,
+    points:(simp.length>=3?simp:drawPoly.slice()),color:"#7aa2f7",x:0,y:0,desc:"",tags:[],mapId:W.currentMap};
+  W.places.push(area); autoAssignArea(area);
+  W.maps.push(blankMap(area.name||t("영역"), area.id));  // 하위 지도 자동 생성(이름 연동)
+  drawPoly=null; previewPt=null;
+  setTool("pan"); selectItem(id); renderMapBar(); renderAll();
+}
+function cancelArea(){
+  drawPoly=null; previewPt=null; holeTarget=null; pendingHole=null;
+  renderAreas();
+}
+/* 선/경로: 영역과 같은 자유곡선 드래그이나 열린 경로(shape:line) */
+function startLineDraw(e){
+  drawPoly=[worldPt(e)]; previewPt=null;
+  const mv=ev=>{ const p=worldPt(ev); const last=drawPoly[drawPoly.length-1];
+    if(Math.hypot(p.x-last.x,p.y-last.y) > 9/cam.z){ drawPoly.push(p); renderAreas(); } };
+  const up=()=>{ window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up); finishFreeLine(); };
+  window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+}
+function finishFreeLine(){
+  if(!drawPoly || drawPoly.length<2){ drawPoly=null; previewPt=null; renderAreas(); return; }
+  const id=uid();
+  const simp=(simplifyStrength>0?simplifyPoly(drawPoly, simplifyStrength/cam.z):drawPoly.slice());
+  W.places.push({id,name:(curLang()==="en"?"New Path":"새 경로"),placeType:"경로",shape:"line",curve:true,
+    points:(simp.length>=2?simp:drawPoly.slice()),color:"#7dcfff",width:3,x:0,y:0,desc:"",tags:[],mapId:W.currentMap});
+  drawPoly=null; previewPt=null;
+  setTool("pan"); selectItem(id); renderAll();
+}
+/* 구멍 그리기: 선택된 영역 안쪽에 곡선을 그려 구멍(holes)으로 추가 */
+function startHoleMode(id){
+  const a=W.places.find(p=>p.id===id);
+  if(!a || a.shape!=="area"){ return; }
+  holeTarget=id; setTool("hole");
+}
+function startHoleDraw(e){
+  drawPoly=[worldPt(e)]; previewPt=null;
+  const mv=ev=>{ const p=worldPt(ev); const last=drawPoly[drawPoly.length-1];
+    if(Math.hypot(p.x-last.x,p.y-last.y) > 9/cam.z){ drawPoly.push(p); renderAreas(); } };
+  const up=()=>{ window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up); finishHole(); };
+  window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+}
+let pendingHole=null;   // 구멍 확정 모달이 떠 있는 동안 대상 영역id·좌표를 보관 {areaId, points}
+function finishHole(){
+  const a=holeTarget && W.places.find(p=>p.id===holeTarget);
+  if(!a || !drawPoly || drawPoly.length<3){
+    drawPoly=null; previewPt=null; holeTarget=null;
+    setTool("pan"); renderAll();
+    return;
+  }
+  const simp=(simplifyStrength>0?simplifyPoly(drawPoly, simplifyStrength/cam.z):drawPoly.slice());
+  const pts=(simp.length>=3?simp:drawPoly.slice()).map(q=>({x:q.x,y:q.y}));
+  pendingHole={areaId:a.id, points:pts};
+  previewPt=null;
+  setTool("pan",{keepDraw:true});   // drawPoly는 남겨서 모달이 떠 있는 동안 그린 모양이 계속 미리보기로 보이게 함
+  openHoleAreaModal(a);
+}
+/* 구멍을 확정하기 전에, 같은 자리에 동일한 모양의 새 면 영역도 만들지 물어보는 모달 */
+function openHoleAreaModal(a){
+  openModal(`<h2>${t("구멍 확정")}</h2>
+    <p style="margin:2px 0 14px;line-height:1.5">${t("방금 그린 구멍 자리에 같은 모양의 새 면 영역도 함께 만들까요? 호수 안의 섬처럼, 뚫린 자리를 별도 지역으로 설정하고 싶을 때 유용해요.")}</p>
+    <div class="mrow">
+      <button class="btn" onclick="commitHole(false)">${t("구멍만 뚫기")}</button>
+      <button class="btn primary" onclick="commitHole(true)">${t("새 영역도 만들기")}</button>
+    </div>`);
+}
+/* 모달 선택 결과를 실제로 반영: 항상 구멍을 뚫고, makeArea면 같은 좌표로 새 면 영역도 추가 */
+function commitHole(makeArea){
+  const ph=pendingHole; pendingHole=null;
+  drawPoly=null; previewPt=null; holeTarget=null;
+  closeModal();
+  if(!ph){ renderAll(); return; }
+  const a=W.places.find(p=>p.id===ph.areaId);
+  let selectId=a?a.id:null;
+  if(a){
+    (a.holes=a.holes||[]).push(ph.points.map(q=>({x:q.x,y:q.y})));
+    if(makeArea){
+      const id=uid();
+      const newArea={id,name:(curLang()==="en"?"New Area":"새 지역"),placeType:"지역",shape:"area",curve:a.curve,
+        points:ph.points.map(q=>({x:q.x,y:q.y})),color:"#7aa2f7",x:0,y:0,desc:"",tags:[],mapId:a.mapId};
+      W.places.push(newArea); autoAssignArea(newArea);
+      W.maps.push(blankMap(newArea.name||t("영역"), newArea.id));  // 하위 지도 자동 생성(이름 연동)
+      selectId=id;
+    }
+  }
+  if(selectId) selectItem(selectId);
+  renderMapBar(); renderAll();
+}
+function clearHoles(id){ const a=W.places.find(p=>p.id===id); if(!a) return;
+  delete a.holes; renderPins(); renderDetail(); markDirty(); }
+/* 텍스트 라벨: 클릭 위치에 배치 */
+function placeLabel(e){
+  const pt=worldPt(e); const id=uid();
+  W.places.push({id,name:(curLang()==="en"?"Text":"텍스트"),shape:"label",x:pt.x,y:pt.y,size:22,color:"#e8ecff",desc:"",tags:[],mapId:W.currentMap});
+  setTool("pan"); selectItem(id); renderAll();
+}
+wrap.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const rect=wrap.getBoundingClientRect(); const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const wx=(mx-cam.x)/cam.z, wy=(my-cam.y)/cam.z;
+  const f=e.deltaY<0?1.12:0.89; cam.z=Math.max(0.2,Math.min(3,cam.z*f));
+  cam.x=mx-wx*cam.z; cam.y=my-wy*cam.z; applyCam();
+},{passive:false});
+
+function placeAt(e){
+  const p=worldPt(e);
+  const id=uid();
+  const place={id,name:(curLang()==="en"?"New Place":"새 장소"),placeType:"도시",x:p.x,y:p.y,desc:"",tags:[],mapId:W.currentMap};
+  W.places.push(place); autoAssignArea(place);
+  setTool("pan"); selectItem(id); renderAll();
+}
+
+/* ============ 배경 & 지형 저장/복원 ============ */
+function applyMap(){
+  const bg=document.getElementById("mapbg");
+  const m=curMap();
+  const mw=(m&&m.mapW)||4000, mh=(m&&m.mapH)||3000;
+  if(m.bg && m.bg.type==="image" && m.bg.value){
+    bg.style.background=`url(${m.bg.value}) center/cover no-repeat`;
+  } else {
+    bg.style.background=(m.bg&&m.bg.value)||"#161821";
+  }
+  bg.style.width=mw+"px"; bg.style.height=mh+"px";
+  const grid=document.getElementById("grid");
+  grid.style.width=mw+"px"; grid.style.height=mh+"px";
+  grid.style.display = (m.showGrid===false) ? "none" : "block";
+  document.getElementById("gridBtn").classList.toggle("active", m.showGrid!==false);
+  ["areas","measure"].forEach(id=>{
+    const el=document.getElementById(id);
+    el.setAttribute("width",mw); el.setAttribute("height",mh);
+    el.style.width=mw+"px"; el.style.height=mh+"px";
+  });
+  const edges=document.getElementById("edges");
+  edges.style.width=mw+"px"; edges.style.height=mh+"px";
+  renderResizeHandles();
+}
+function saveTerrain(){ try{ curMap().terrain=canvas.toDataURL("image/png"); }catch(e){} }
+/* 상위 지도들(바깥→안쪽 순)의 지형 — 하위 지도의 밑그림으로 깔림 */
+function ancestorMaps(m){
+  const chain=[]; let cur=m, seen=new Set();
+  while(cur && cur.parent){
+    const pp=W.places.find(p=>p.id===cur.parent); if(!pp) break;
+    const pm=W.maps.find(x=>x.id===pp.mapId); if(!pm||seen.has(pm.id)) break;
+    seen.add(pm.id); chain.unshift(pm); cur=pm;
+  }
+  return chain;
+}
+let _terrainToken=0;
+function drawLayer(c, srcs, tok){
+  // 순서대로 이미지를 겹쳐 그림. 그리는 도중 지도가 다시 바뀌면(tok 불일치) 중단
+  let i=0;
+  const step=()=>{
+    if(tok!==_terrainToken) return;
+    while(i<srcs.length && !srcs[i]) i++;
+    if(i>=srcs.length) return;
+    const im=new Image(); im.onload=()=>{ if(tok===_terrainToken) c.drawImage(im,0,0); i++; step(); };
+    im.onerror=()=>{ i++; step(); }; im.src=srcs[i];
+  };
+  step();
+}
+function syncTerrainCanvasSize(){
+  // 지도를 전환할 때 캔버스 버퍼 크기를 현재 지도 크기에 맞춘다(내용은 어차피 loadTerrain이 다시 그림).
+  const m=curMap();
+  const mw=(m&&m.mapW)||4000, mh=(m&&m.mapH)||3000;
+  [canvas,baseCanvas].forEach(el=>{
+    if(el.width!==mw||el.height!==mh){ el.width=mw; el.height=mh; }
+    el.style.width=mw+"px"; el.style.height=mh+"px";
+  });
+}
+function loadTerrain(){
+  syncTerrainCanvasSize();
+  const tok=++_terrainToken;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  baseCtx.clearRect(0,0,baseCanvas.width,baseCanvas.height);
+  const m=curMap();
+  drawLayer(baseCtx, ancestorMaps(m).map(x=>x.terrain), tok);
+  drawLayer(ctx, [m&&m.terrain], tok);
+}
+function toggleGrid(){ const m=curMap(); m.showGrid = !(m.showGrid!==false); applyMap(); markDirty(); }
+
+/* ============ 지도 크기 조절(양 끝·모서리를 드래그) ============
+   확대/축소(카메라 배율)와 별개로, 지도 배경·지형·격자가 차지하는 실제 캔버스 크기(mapW,mapH) 자체를 늘리거나 줄인다.
+   반대쪽 변/모서리는 화면상 고정된 것처럼 보이도록, w(좌)/n(상) 방향 드래그 시 기존 장소·지형을 그만큼 밀어(shift) 원점(0,0)을 항상 유지한다. */
+const RZ_MIN=200, RZ_MAX=10000, RZ_PAD=20;
+const RZ_DIRS=["n","s","e","w","ne","nw","se","sw"];
+function buildResizeHandles(){
+  const box=document.getElementById("mapResize"); if(!box) return;
+  RZ_DIRS.forEach(d=>{
+    const el=document.createElement("div");
+    el.className="rzh rzh-"+d; el.dataset.dir=d;
+    el.title=t("드래그해서 지도 크기 조절");
+    box.appendChild(el);
+  });
+}
+function renderResizeHandles(){
+  const box=document.getElementById("mapResize"); if(!box) return;
+  const m=curMap(); const w=(m&&m.mapW)||4000, h=(m&&m.mapH)||3000;
+  const P={n:[w/2,0], s:[w/2,h], e:[w,h/2], w:[0,h/2], ne:[w,0], nw:[0,0], se:[w,h], sw:[0,h]};
+  box.querySelectorAll(".rzh").forEach(el=>{
+    const p=P[el.dataset.dir]; el.style.left=p[0]+"px"; el.style.top=p[1]+"px";
+  });
+}
+/* 현재 지도에 있는 장소·영역·선·라벨의 좌표 범위(점 하나만 있어도 포함) */
+function mapContentBBox(mapId){
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity, any=false;
+  W.places.forEach(p=>{
+    if(p.mapId!==mapId) return;
+    const pts = (p.points&&p.points.length) ? p.points : [{x:p.x||0,y:p.y||0}];
+    pts.forEach(pt=>{ any=true;
+      if(pt.x<minX)minX=pt.x; if(pt.y<minY)minY=pt.y; if(pt.x>maxX)maxX=pt.x; if(pt.y>maxY)maxY=pt.y; });
+  });
+  return any ? {minX,minY,maxX,maxY} : null;
+}
+/* 현재 열려있는 지형 캔버스에서 실제로 칠해진(불투명) 영역의 범위(성능을 위해 표본 추출) */
+function terrainOpaqueBBox(cnv){
+  try{
+    const w=cnv.width, h=cnv.height; if(!w||!h) return null;
+    const step=Math.max(1, Math.round(Math.max(w,h)/500));
+    const data=cnv.getContext("2d").getImageData(0,0,w,h).data;
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for(let y=0;y<h;y+=step){
+      for(let x=0;x<w;x+=step){
+        if(data[(y*w+x)*4+3]>10){ if(x<minX)minX=x; if(y<minY)minY=y; if(x>maxX)maxX=x; if(y>maxY)maxY=y; }
+      }
+    }
+    if(minX===Infinity) return null;
+    return {minX,minY,maxX:Math.min(w,maxX+step),maxY:Math.min(h,maxY+step)};
+  }catch(e){ return null; }
+}
+/* 축소를 제한할 기준 경계(장소+지형 합산). 아무 콘텐츠도 없으면 null(제한 없음) */
+function mapClampBBox(m){
+  const a=mapContentBBox(m.id);
+  const b=terrainOpaqueBBox(canvas);
+  if(!a && !b) return null;
+  const xs=[],ys=[];
+  if(a){ xs.push(a.minX,a.maxX); ys.push(a.minY,a.maxY); }
+  if(b){ xs.push(b.minX,b.maxX); ys.push(b.minY,b.maxY); }
+  return {minX:Math.min(...xs), minY:Math.min(...ys), maxX:Math.max(...xs), maxY:Math.max(...ys)};
+}
+/* 드래그 방향(dir)·이동량(dx,dy)으로부터 새 크기와, 원점 유지를 위한 콘텐츠 이동량(shiftX,shiftY) 계산 */
+function computeResize(dir,startW,startH,dx,dy,bbox){
+  let w=startW, h=startH, shiftX=0, shiftY=0;
+  if(dir.includes("e")) w=startW+dx;
+  if(dir.includes("w")) w=startW-dx;
+  if(dir.includes("s")) h=startH+dy;
+  if(dir.includes("n")) h=startH-dy;
+  w=Math.min(RZ_MAX,Math.max(RZ_MIN,w));
+  h=Math.min(RZ_MAX,Math.max(RZ_MIN,h));
+  if(dir.includes("w")) shiftX=w-startW;
+  if(dir.includes("n")) shiftY=h-startH;
+  if(bbox){
+    if(dir.includes("w") && bbox.minX+shiftX<RZ_PAD){ shiftX=RZ_PAD-bbox.minX; w=startW+shiftX; }
+    if(dir.includes("e") && bbox.maxX>w-RZ_PAD){ w=bbox.maxX+RZ_PAD; }
+    if(dir.includes("n") && bbox.minY+shiftY<RZ_PAD){ shiftY=RZ_PAD-bbox.minY; h=startH+shiftY; }
+    if(dir.includes("s") && bbox.maxY>h-RZ_PAD){ h=bbox.maxY+RZ_PAD; }
+    w=Math.min(RZ_MAX,Math.max(RZ_MIN,w));
+    h=Math.min(RZ_MAX,Math.max(RZ_MIN,h));
+    if(dir.includes("w")) shiftX=w-startW;
+    if(dir.includes("n")) shiftY=h-startH;
+  }
+  return {w:Math.round(w), h:Math.round(h), shiftX:Math.round(shiftX), shiftY:Math.round(shiftY)};
+}
+/* 캔버스 버퍼 크기를 바꾸면서(=내용이 지워지므로) 기존 그림을 (dx,dy)만큼 옮겨 새 버퍼에 다시 그려 보존 */
+function resizeCanvasWithShift(el, cctx, newW, newH, dx, dy){
+  const tmp=document.createElement("canvas"); tmp.width=el.width; tmp.height=el.height;
+  tmp.getContext("2d").drawImage(el,0,0);
+  el.width=newW; el.height=newH; el.style.width=newW+"px"; el.style.height=newH+"px";
+  cctx.clearRect(0,0,newW,newH);
+  cctx.drawImage(tmp,dx,dy);
+}
+function commitMapResize(m,res){
+  const oldW=m.mapW||4000, oldH=m.mapH||3000;
+  const {w:newW,h:newH,shiftX,shiftY}=res;
+  if(newW===oldW && newH===oldH) return;
+  if(shiftX||shiftY){
+    W.places.forEach(p=>{
+      if(p.mapId!==m.id) return;
+      if(p.points && p.points.length) p.points=p.points.map(q=>({x:q.x+shiftX,y:q.y+shiftY}));
+      else { p.x=(p.x||0)+shiftX; p.y=(p.y||0)+shiftY; }
+      if(p.holes) p.holes=p.holes.map(hole=>hole.map(q=>({x:q.x+shiftX,y:q.y+shiftY})));
+    });
+    cam.x-=shiftX*cam.z; cam.y-=shiftY*cam.z;
+  }
+  resizeCanvasWithShift(canvas,ctx,newW,newH,shiftX,shiftY);   // 이 지도의 지형(사용자가 직접 그린 것) 보존
+  m.mapW=newW; m.mapH=newH;
+  const tok=++_terrainToken;
+  baseCanvas.width=newW; baseCanvas.height=newH;
+  baseCanvas.style.width=newW+"px"; baseCanvas.style.height=newH+"px";
+  baseCtx.clearRect(0,0,newW,newH);
+  drawLayer(baseCtx, ancestorMaps(m).map(x=>x.terrain), tok);   // 상위 지도 밑그림은 파생 데이터라 다시 그리기만 하면 됨
+  applyCam(); applyMap(); renderAll(); markDirty();
+}
+function enableMapResize(){
+  document.querySelectorAll("#mapResize .rzh").forEach(el=>{
+    el.addEventListener("pointerdown",e=>{
+      if(tool!=="pan") return;
+      e.stopPropagation(); e.preventDefault();
+      const dir=el.dataset.dir, m=curMap();
+      const startW=m.mapW||4000, startH=m.mapH||3000;
+      const bbox=mapClampBBox(m);
+      const sx=e.clientX, sy=e.clientY;
+      const outline=document.getElementById("mapResizePreview");
+      outline.style.display="block";
+      const paint=(res)=>{
+        outline.style.left=(-res.shiftX)+"px"; outline.style.top=(-res.shiftY)+"px";
+        outline.style.width=res.w+"px"; outline.style.height=res.h+"px";
+      };
+      paint({w:startW,h:startH,shiftX:0,shiftY:0});
+      let last=null;
+      const mv=ev=>{
+        const dx=(ev.clientX-sx)/cam.z, dy=(ev.clientY-sy)/cam.z;
+        last=computeResize(dir,startW,startH,dx,dy,bbox);
+        paint(last);
+      };
+      const up=()=>{
+        window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up);
+        outline.style.display="none";
+        if(last) commitMapResize(m,last);
+      };
+      window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+    });
+  });
+}
+
+function openBgModal(){
+  const cur=(curMap().bg&&curMap().bg.type==="color")?curMap().bg.value:"#161821";
+  openModal(`<h2>${t("지도 배경 설정")}</h2>
+    <label class="fl">${t("배경 이미지")}</label>
+    <button class="btn" style="width:100%" onclick="pickBgImage()">${t("이미지 파일 선택…")}</button>
+    <p style="font-size:12px;color:var(--muted);margin:8px 0 14px">${t("바다·용암·양피지 같은 텍스처를 넣으면 지도 전체 배경이 됩니다. 그 위에 브러시로 육지·산을 그려 원하는 세계를 완성합니다.")}</p>
+    <label class="fl">${t("또는 단색 배경")}</label>
+    <input type="color" class="f" value="${cur}" oninput="setBgColor(this.value)" style="height:40px">
+    <div class="mrow">
+      <button class="btn" onclick="clearBg()">${t("기본으로")}</button>
+      <button class="btn primary" onclick="closeModal()">${t("완료")}</button>
+    </div>`);
+}
+function pickBgImage(){
+  const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*";
+  inp.onchange=()=>{ const f=inp.files[0]; if(!f)return; const r=new FileReader();
+    r.onload=()=>{ curMap().bg={type:"image",value:r.result}; applyMap(); closeModal(); markDirty(); };
+    r.readAsDataURL(f); };
+  inp.click();
+}
+function setBgColor(c){ curMap().bg={type:"color",value:c}; applyMap(); markDirty(); }
+function clearBg(){ curMap().bg={type:"color",value:"#161821"}; applyMap(); closeModal(); markDirty(); }
+
+/* ============ 축척 · 거리 측정 ============ */
+function measureDist(a,b){ return Math.hypot(b.x-a.x,b.y-a.y); }
+function fmtDist(px){ const s=W.meta.scale;
+  return (s&&s.perPx) ? (px*s.perPx).toLocaleString(undefined,{maximumFractionDigits:1})+" "+(s.unit||"km")
+                      : Math.round(px)+" px"; }
+function startMeasure(e){
+  measureLine={a:worldPt(e), b:worldPt(e)}; renderMeasure();
+  const mv=ev=>{ measureLine.b=worldPt(ev); renderMeasure(); };
+  const up=()=>{ window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up); };
+  window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+}
+function renderMeasure(){
+  const svg=document.getElementById("measure"); if(!svg) return;
+  if(!measureLine){ svg.innerHTML=""; return; }
+  const {a,b}=measureLine, mx=(a.x+b.x)/2, my=(a.y+b.y)/2, z=cam.z;
+  svg.innerHTML=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#e0af68" stroke-width="${2/z}" stroke-dasharray="${7/z} ${4/z}"/>
+    <circle cx="${a.x}" cy="${a.y}" r="${4/z}" fill="#e0af68"/><circle cx="${b.x}" cy="${b.y}" r="${4/z}" fill="#e0af68"/>
+    <text x="${mx}" y="${my-9/z}" fill="#fff" font-size="${13/z}" text-anchor="middle" paint-order="stroke" stroke="#000" stroke-width="${3.5/z}">${esc(fmtDist(measureDist(a,b)))}</text>`;
+}
+function renderScaleBar(){
+  const el=document.getElementById("scaleBar"); if(!el) return;
+  const s=W.meta.scale;
+  if(!s || !s.perPx){ el.style.display="none"; return; }
+  const worldPx=110/cam.z, real=worldPx*s.perPx;
+  const pow=Math.pow(10,Math.floor(Math.log10(real))), f=real/pow;
+  const nice=(f>=5?5:f>=2?2:1)*pow;
+  const screen=(nice/s.perPx)*cam.z;
+  el.style.display="block";
+  el.innerHTML=`<div class="sb-line" style="width:${screen}px"></div><span>${nice.toLocaleString()} ${esc(s.unit||"km")}</span>`;
+}
+function openScaleModal(){
+  const s=W.meta.scale||{perPx:"",unit:"km"};
+  const lastPx = measureLine? Math.round(measureDist(measureLine.a,measureLine.b)) : 0;
+  const en=curLang()==="en";
+  openModal(`<h2>${t("축척 설정")}</h2>
+    <label class="fl">${t("1 픽셀당 거리 · 단위")}</label>
+    <div style="display:flex;gap:6px">
+      <input class="f" id="scPer" type="number" step="any" value="${s.perPx||""}" placeholder="${en?"e.g. 0.5":"예: 0.5"}" style="flex:1">
+      <input class="f" id="scUnit" value="${esc(s.unit||"km")}" style="width:80px">
+    </div>
+    ${lastPx? `<p style="font-size:12px;color:var(--muted);margin:6px 0">${en?`Enter the real distance of the ${lastPx}px you just measured to auto-calibrate.`:`방금 측정한 ${lastPx}px의 실제 거리를 입력하면 자동 보정됩니다.`}</p>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+        <span style="font-size:12px;color:var(--muted);white-space:nowrap">${lastPx}px =</span>
+        <input class="f" id="scReal" type="number" step="any" placeholder="${t("실제 거리")}" style="flex:1;margin:0">
+        <button class="btn" onclick="calibScale(${lastPx})">${t("보정")}</button></div>`:""}
+    <div class="mrow"><button class="btn" onclick="closeModal()">${t("취소")}</button>
+      <button class="btn primary" onclick="saveScale()">${t("저장")}</button></div>`);
+}
+function calibScale(px){ const real=parseFloat(document.getElementById("scReal").value);
+  if(real>0 && px>0) document.getElementById("scPer").value = real/px; }
+function saveScale(){
+  const per=parseFloat(document.getElementById("scPer").value);
+  const unit=document.getElementById("scUnit").value.trim()||"km";
+  if(per>0) W.meta.scale={perPx:per,unit}; else delete W.meta.scale;
+  closeModal(); renderScaleBar(); renderDetail(); markDirty();
+}
+
+/* ============ 다중 지도 ============ */
+function renderMapBar(){
+  const bar=document.getElementById("mapBar"); if(!bar) return;
+  const cur=curMap();
+  let s="";
+  const en=curLang()==="en";
+  if(cur.parent){
+    const pp=W.places.find(p=>p.id===cur.parent);
+    if(pp){
+      s+=`<span class="mapcrumb">${en?`in ${esc(pp.name)}`:`${esc(pp.name)} 안`}</span>`;
+      s+=`<button class="btn mini" title="${t("상위 지도로")}" onclick="switchMap('${pp.mapId}')">${t("↑ 상위")}</button>`;
+    }
+  }
+  const opts=W.maps.map(m=>`<option value="${m.id}" ${m.id===W.currentMap?"selected":""}>${esc(mapDepthMark(m)+m.name)}</option>`).join("");
+  s+=`<select onchange="switchMap(this.value)">${opts}</select>`;
+  s+=`<button class="btn mini" onclick="renameMap()">${t("이름")}</button>`;
+  s+=`<button class="btn mini" onclick="addMainMap()">${t("＋ 새 지도")}</button>`;
+  s+=`<button class="btn mini" title="${t("축척 설정")}" onclick="openScaleModal()">${t("축척")}</button>`;
+  if(W.maps.length>1) s+=`<button class="btn mini" title="${t("현재 지도 삭제")}" onclick="deleteCurMap()">🗑</button>`;
+  bar.innerHTML=s;
+}
+function mapDepthMark(m){
+  let d=0, cur=m, seen=new Set();
+  while(cur && cur.parent){
+    const pp=W.places.find(p=>p.id===cur.parent); if(!pp) break;
+    const pm=W.maps.find(x=>x.id===pp.mapId); if(!pm||seen.has(pm.id)) break;
+    seen.add(pm.id); d++; cur=pm;
+  }
+  return "· ".repeat(d);
+}
+function switchMap(id){
+  if(!id || id===W.currentMap) return;
+  if(!W.maps.find(m=>m.id===id)) return;
+  saveTerrain();                 // 현재 지도 지형 보존
+  W.currentMap=id; cam={x:40,y:40,z:1};
+  applyMap(); loadTerrain(); renderMapBar(); renderAll(); fitView(); markDirty();
+}
+function addMainMap(){
+  saveTerrain();
+  const n=W.maps.filter(m=>!m.parent).length+1;
+  const m=blankMap(t("메인 지도")+" "+n, null);
+  W.maps.push(m); W.currentMap=m.id; cam={x:40,y:40,z:1};
+  applyMap(); loadTerrain(); renderMapBar(); renderAll(); markDirty();
+}
+function addSubMap(placeId){
+  const place=W.places.find(p=>p.id===placeId); if(!place) return;
+  saveTerrain();
+  // 하위 지도는 부모 영역·그 하위 장소들을 좌표 연동으로 자동 미러링하므로 복제하지 않음
+  let m=W.maps.find(x=>x.parent===placeId);
+  if(!m){ m=blankMap(place.name||"영역", placeId); W.maps.push(m); }
+  W.currentMap=m.id; cam={x:40,y:40,z:1};
+  applyMap(); loadTerrain(); renderMapBar(); renderAll(); fitView(); markDirty();
+}
+/* 모든 면 영역에 하위 지도가 하나씩 있도록 보장 */
+function ensureSubMaps(){
+  W.places.forEach(p=>{
+    if(p.shape==="area" && !W.maps.some(m=>m.parent===p.id)){
+      W.maps.push(blankMap(p.name||"영역", p.id));
+    }
+  });
+}
+/* 부모 장소가 사라진 하위 지도(및 그 지도에만 있던 장소)를 정리 */
+function cleanupOrphanMaps(){
+  let changed=true;
+  while(changed){
+    changed=false;
+    for(const m of W.maps.slice()){
+      if(m.parent && !W.places.find(p=>p.id===m.parent)){
+        W.places=W.places.filter(p=>p.mapId!==m.id);
+        W.maps=W.maps.filter(x=>x.id!==m.id);
+        changed=true;
+      }
+    }
+  }
+  if(!W.maps.find(m=>m.id===W.currentMap)) W.currentMap=(W.maps[0]||{}).id;
+}
+function renameMap(){
+  const m=curMap(); const n=prompt(t("지도 이름"), m.name);
+  if(n!==null){
+    m.name=n.trim()||m.name;
+    if(m.parent){ const a=W.places.find(p=>p.id===m.parent); if(a){ a.name=m.name; } }  // 영역 이름도 연동
+    renderMapBar(); renderLeft(); renderDetail(); markDirty();
+  }
+}
+function deleteCurMap(){
+  if(W.maps.length<=1){ appAlert(t("지도가 하나뿐이라 삭제할 수 없습니다.")); return; }
+  const m=curMap();
+  appConfirm(curLang()==="en"?`Delete map '${m.name}'? Places and terrain on this map will also be deleted.`:`'${m.name}' 지도를 삭제하시겠습니까? 이 지도의 장소·지형도 함께 삭제됩니다.`, ()=>{
+    W.places=W.places.filter(p=>p.mapId!==m.id);
+    W.maps=W.maps.filter(x=>x.id!==m.id);
+    // 이 지도를 부모로 삼던 하위 지도는 최상위로
+    W.maps.forEach(x=>{ if(x.parent){ const pp=W.places.find(p=>p.id===x.parent); if(!pp) x.parent=null; } });
+    W.currentMap=W.maps[0].id; cam={x:40,y:40,z:1};
+    applyMap(); loadTerrain(); renderMapBar(); renderAll(); fitView(); markDirty();
+  });
+}
+function focusPlace(id){
+  const p=W.places.find(x=>x.id===id); if(!p) return;
+  if(p.mapId!==W.currentMap){ switchMap(p.mapId); }
+  const a=placeAnchor(p);
+  switchView("map");
+  cam.z=1.2;
+  cam.x=document.getElementById("center").clientWidth/2 - a.x*cam.z;
+  cam.y=document.getElementById("center").clientHeight/2 - a.y*cam.z;
+  applyCam();
+}
+function fitView(){
+  const here=W.places.filter(p=>visibleOnMap(p,W.currentMap));
+  if(here.length===0){ cam={x:40,y:40,z:1}; applyCam(); return; }
+  // 점은 좌표, 면은 모든 꼭짓점을 포함해 범위 계산
+  const xs=[],ys=[];
+  here.forEach(p=>{
+    if(p.shape==="area" && p.points && p.points.length){ p.points.forEach(pt=>{xs.push(pt.x);ys.push(pt.y);}); }
+    else { xs.push(p.x); ys.push(p.y); }
+  });
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  const cw=document.getElementById("center").clientWidth, ch=document.getElementById("center").clientHeight;
+  const w=Math.max(maxX-minX,200),h=Math.max(maxY-minY,200);
+  cam.z=Math.min(2,Math.max(.3,Math.min((cw-160)/w,(ch-160)/h)));
+  cam.x=cw/2-((minX+maxX)/2)*cam.z; cam.y=ch/2-((minY+maxY)/2)*cam.z; applyCam();
+}
+
+/* ============ 뷰 전환 ============ */
+function switchView(v){
+  view=v;
+  if(v!=="graph") stopGraphSim();   // 관계도를 벗어나면 시뮬레이션 정지
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.view===v));
+  document.getElementById("mapWrap").style.display=v==="map"?"block":"none";
+  document.getElementById("graphView").style.display=v==="graph"?"block":"none";
+  document.getElementById("timelineView").style.display=v==="timeline"?"block":"none";
+  renderView();
+}
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>switchView(t.dataset.view));
+
+function renderView(){
+  if(view==="graph") renderGraph();
+  else if(view==="timeline") renderTimeline();
+}
+
+/* --- 관계도(그래프) 필터 --- */
+let graphCats=new Set(Object.keys(CATS));   // 표시할 분류
+let graphTags=new Set();                     // 선택된 태그(비어있으면 전체)
+function toggleGraphCat(k){ graphCats.has(k)?graphCats.delete(k):graphCats.add(k); renderGraph(); }
+function toggleGraphTag(t){ graphTags.has(t)?graphTags.delete(t):graphTags.add(t); renderGraph(); }
+function clearGraphTags(){ graphTags.clear(); renderGraph(); }
+function resetGraphFilter(){ graphCats=new Set(Object.keys(CATS)); graphTags.clear(); renderGraph(); }
+function graphVisible(n){
+  return graphCats.has(n.cat) && (graphTags.size===0 || (n.tags||[]).some(t=>graphTags.has(t)));
+}
+function renderGraphFilter(){
+  const box=document.getElementById("graphFilter");
+  let s=`<div class="gf-row"><span class="gf-lbl">${t("분류")}</span>`;
+  for(const [key,meta] of Object.entries(CATS)){
+    const on=graphCats.has(key);
+    const st=on?`background:${meta.color};border-color:${meta.color};color:#0b0e18;font-weight:600`:"";
+    s+=`<button class="gf-chip${on?' on':''}" style="${st}" data-cat="${key}">${meta.icon} ${t(meta.label)}</button>`;
+  }
+  s+=`</div>`;
+  const tags=[...new Set(allItems().flatMap(i=>i.tags||[]))].sort();
+  if(tags.length){
+    s+=`<div class="gf-row"><span class="gf-lbl">${t("태그")}</span>`;
+    tags.forEach((tg,idx)=>{ const on=graphTags.has(tg);
+      s+=`<button class="gf-chip${on?' on':''}" data-tag="${idx}">#${esc(tg)}</button>`;
+    });
+    if(graphTags.size) s+=`<button class="gf-chip mini" data-cleartags="1">${t("태그 해제")}</button>`;
+    s+=`</div>`;
+  }
+  s+=`<div class="gf-row"><button class="gf-chip mini" data-arrange="1">${t("⟲ 자동 정렬")}</button><span class="gf-lbl" style="width:auto">${t("노드를 끌어 고정할 수 있어요")}</span></div>`;
+  box.innerHTML=s;
+  box.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>toggleGraphCat(b.dataset.cat));
+  box.querySelectorAll("[data-tag]").forEach(b=>b.onclick=()=>toggleGraphTag(tags[+b.dataset.tag]));
+  box.querySelectorAll("[data-cleartags]").forEach(b=>b.onclick=()=>clearGraphTags());
+  box.querySelectorAll("[data-arrange]").forEach(b=>b.onclick=()=>graphAutoArrange());
+}
+
+/* --- 관계도(그래프): force-directed 배치 --- */
+let graphSim=null;
+function stopGraphSim(){ if(graphSim&&graphSim.raf){ cancelAnimationFrame(graphSim.raf); graphSim.raf=null; } }
+function graphAutoArrange(){ W.graphPos={}; graphSim=null; renderGraph(); markDirty(); }
+function renderGraph(){
+  renderGraphFilter();
+  const svg=document.getElementById("graphSvg");
+  const cw=svg.clientWidth||document.getElementById("center").clientWidth;
+  const ch=svg.clientHeight||document.getElementById("center").clientHeight;
+  const nodes=allItems().filter(graphVisible);
+  if(nodes.length===0){ stopGraphSim(); graphSim=null; svg.innerHTML=""; return; }
+  const vis=new Set(nodes.map(n=>n.id));
+  const links=W.links.filter(l=>vis.has(l.from)&&vis.has(l.to));
+  const key=nodes.map(n=>n.id).sort().join(",")+"||"+links.map(l=>l.from+">"+l.to+":"+l.rel+(l.relBack||"")).join(",");
+  if(graphSim && graphSim.key===key){ updateGraphHighlight(); return; }  // 노드·관계 동일 → 강조만 갱신
+  stopGraphSim();
+  const pin=W.graphPos||{};
+  const cx=cw/2, cy=88+(ch-88)/2, R=Math.min(cw,ch-88)/2-70;
+  const N=nodes.map((n,i)=>{ const p=pin[n.id], a=i/nodes.length*Math.PI*2;
+    return { id:n.id, cat:n.cat, name:n.name||"",
+      x: p?p.x:(cx+R*Math.cos(a)+(Math.random()-.5)*30),
+      y: p?p.y:(cy+R*Math.sin(a)+(Math.random()-.5)*30),
+      vx:0, vy:0, pinned:!!p }; });
+  const byId={}; N.forEach(n=>byId[n.id]=n);
+  let s="";
+  links.forEach((l,i)=>{ s+=`<line class="ge" data-i="${i}" stroke="#3b4160" stroke-width="1.5"/>
+    <text class="gel" data-i="${i}" fill="#e0af68" font-size="10" text-anchor="middle"></text>`; });
+  N.forEach(n=>{ const c=CATS[n.cat];
+    s+=`<g class="gn" data-id="${n.id}" style="cursor:grab">
+      <circle r="9" fill="${c.color}" stroke="#1a1b26" stroke-width="2"/>
+      <text y="-15" fill="#c0caf5" font-size="12" text-anchor="middle">${esc(n.name||"")}</text></g>`; });
+  svg.innerHTML=s;
+  const lineEls=[...svg.querySelectorAll("line.ge")], labEls=[...svg.querySelectorAll("text.gel")], nodeEls={};
+  links.forEach((l,i)=>{ labEls[i].textContent = l.relBack?`${l.rel} ⇄ ${l.relBack}`:`→ ${l.rel}`; });
+  svg.querySelectorAll("g.gn").forEach(g=>{ nodeEls[g.dataset.id]=g; enableGraphDrag(g, byId[g.dataset.id]); });
+  graphSim={ key, nodes:N, byId, links, lineEls, labEls, nodeEls, cx, cy, alpha:1, raf:null, drag:null };
+  updateGraphHighlight(); drawGraph(); startGraphSim(0.9);
+}
+function startGraphSim(a){ if(!graphSim) return; graphSim.alpha=Math.max(graphSim.alpha, a||0.6);
+  if(!graphSim.raf) graphSim.raf=requestAnimationFrame(graphTick); }
+function graphTick(){
+  const s=graphSim; if(!s){ return; }
+  const N=s.nodes, byId=s.byId, REP=6500, LINK=115, K=0.02, CENTER=0.003, DAMP=0.9;
+  for(let i=0;i<N.length;i++) for(let j=i+1;j<N.length;j++){
+    const a=N[i],b=N[j]; let dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy||0.01, d=Math.sqrt(d2);
+    const f=REP/d2, fx=dx/d*f, fy=dy/d*f; a.vx-=fx; a.vy-=fy; b.vx+=fx; b.vy+=fy;
+  }
+  s.links.forEach(l=>{ const a=byId[l.from], b=byId[l.to]; if(!a||!b) return;
+    let dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.01, f=(d-LINK)*K, fx=dx/d*f, fy=dy/d*f;
+    a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy; });
+  N.forEach(n=>{ if(n.pinned||n===s.drag){ n.vx=0; n.vy=0; return; }
+    n.vx=(n.vx+(s.cx-n.x)*CENTER)*DAMP; n.vy=(n.vy+(s.cy-n.y)*CENTER)*DAMP;
+    n.x+=n.vx*s.alpha; n.y+=n.vy*s.alpha; });
+  s.alpha*=0.985; drawGraph();
+  if(s.alpha>0.03) s.raf=requestAnimationFrame(graphTick); else s.raf=null;
+}
+function drawGraph(){
+  const s=graphSim; if(!s) return;
+  s.links.forEach((l,i)=>{ const a=s.byId[l.from], b=s.byId[l.to]; if(!a||!b) return;
+    const ln=s.lineEls[i]; ln.setAttribute("x1",a.x); ln.setAttribute("y1",a.y); ln.setAttribute("x2",b.x); ln.setAttribute("y2",b.y);
+    const lb=s.labEls[i]; lb.setAttribute("x",(a.x+b.x)/2); lb.setAttribute("y",(a.y+b.y)/2); });
+  for(const id in s.nodeEls){ const n=s.byId[id]; s.nodeEls[id].setAttribute("transform",`translate(${n.x},${n.y})`); }
+}
+function updateGraphHighlight(){
+  const s=graphSim; if(!s) return;
+  for(const id in s.nodeEls){ const on=isSel(id), c=s.nodeEls[id].querySelector("circle");
+    c.setAttribute("r", on?12:9); c.setAttribute("stroke", on?"#fff":"#1a1b26"); }
+}
+function enableGraphDrag(g,node){
+  g.addEventListener("pointerdown",e=>{ e.stopPropagation();
+    const svg=document.getElementById("graphSvg"), rect=svg.getBoundingClientRect();
+    let moved=false, sx=e.clientX, sy=e.clientY; graphSim.drag=node;
+    const mv=ev=>{ if(Math.abs(ev.clientX-sx)+Math.abs(ev.clientY-sy)>3) moved=true;
+      node.x=ev.clientX-rect.left; node.y=ev.clientY-rect.top; node.vx=0; node.vy=0; startGraphSim(0.5); };
+    const up=()=>{ window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up);
+      graphSim.drag=null;
+      if(!moved){ selectItem(node.id); }
+      else { node.pinned=true; (W.graphPos=W.graphPos||{})[node.id]={x:node.x,y:node.y}; markDirty(); } };
+    window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+  });
+}
+
+/* --- 연표 --- */
+function autoSortEvents(list){
+  return [...list].sort((a,b)=>(a.when||"").localeCompare(b.when||"","ko",{numeric:true}));
+}
+function normalizeOrders(){
+  [...W.events].sort((a,b)=>(a.order??1e9)-(b.order??1e9)).forEach((e,i)=>e.order=i);
+}
+function setTimelineManual(on){
+  if(on && !W.timelineManual){
+    // 수동으로 켤 때: 현재 자동(시점) 순서를 기준으로 순서를 고정
+    autoSortEvents(W.events).forEach((e,i)=>e.order=i);
+  }
+  W.timelineManual=on;
+  renderTimeline(); markDirty();
+}
+function moveEvent(id,dir){
+  normalizeOrders();
+  const evs=[...W.events].sort((a,b)=>a.order-b.order);
+  const idx=evs.findIndex(e=>e.id===id), j=idx+dir;
+  if(idx<0||j<0||j>=evs.length) return;
+  const t=evs[idx].order; evs[idx].order=evs[j].order; evs[j].order=t;
+  renderTimeline(); markDirty();
+}
+function timelineHeader(manual){
+  return `<div id="tlBar">
+    <span class="tl-mode">${t("정렬")}</span>
+    <button class="gf-chip${!manual?' on':''}" onclick="setTimelineManual(false)">${t("자동 (시점순)")}</button>
+    <button class="gf-chip${manual?' on':''}" onclick="setTimelineManual(true)">${t("수동")}</button>
+    ${manual?`<span class="tl-hint">${t("▲▼ 로 순서를 조절하세요.")}</span>`:``}
+  </div>`;
+}
+function renderTimeline(){
+  const box=document.getElementById("timelineView");
+  const manual=!!W.timelineManual;
+  if(W.events.length===0){ box.innerHTML=timelineHeader(manual); return; }
+  const evs = manual
+    ? [...W.events].sort((a,b)=>(a.order??1e9)-(b.order??1e9))
+    : autoSortEvents(W.events);
+  let s=timelineHeader(manual);
+  evs.forEach((e,idx)=>{
+    const places=linksOf(e.id).filter(l=>W.places.find(p=>p.id===l.other)).map(l=>itemName(l.other));
+    const ppl=linksOf(e.id).filter(l=>W.entities.find(x=>x.id===l.other&&x.cat==="person")).map(l=>itemName(l.other));
+    let meta=[]; if(places.length)meta.push("📍 "+places.join(", ")); if(ppl.length)meta.push("🧑 "+ppl.join(", "));
+    const ctrls = manual ? `<div class="tl-move">
+        <button ${idx===0?"disabled":""} onclick="event.stopPropagation();moveEvent('${e.id}',-1)">▲</button>
+        <button ${idx===evs.length-1?"disabled":""} onclick="event.stopPropagation();moveEvent('${e.id}',1)">▼</button>
+      </div>` : ``;
+    s+=`<div class="tl-item"><div class="tl-when">${esc(e.when||t("시점 미정"))}</div>
+      <div class="tl-line"></div>
+      <div class="tl-body" onclick="selectItem('${e.id}')">
+        <h4>${esc(e.name)}</h4>
+        <p>${esc(stripWiki(e.desc||"")).slice(0,80)}${meta.length?" · "+meta.join(" · "):""}</p></div>
+      ${ctrls}</div>`;
+  });
+  box.innerHTML=s;
+}
+
+/* ============ 저장/불러오기 ============ */
+/* ============ 로컬 파일 저장/열기 (Tauri 네이티브) · 안전 모드 ============
+   자동저장은 앱 저장소(localStorage)에만. 파일은 '저장'을 누를 때만 갱신 → 불러온 원본 보호. */
+function inTauriApp(){ return !!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke); }
+function tinvoke(cmd,args){ return window.__TAURI__.core.invoke(cmd,args||{}); }
+let _curFile=null, _dirtyFile=false;
+try{ _curFile=localStorage.getItem("we_curfile")||null; }catch(e){}
+function setCurFile(p){ _curFile=p||null; try{ p?localStorage.setItem("we_curfile",p):localStorage.removeItem("we_curfile"); }catch(e){} updSaveState(); }
+function markFileDirty(){ if(!_dirtyFile){ _dirtyFile=true; updSaveState(); } }
+function baseName(p){ return (p||"").split(/[\\/]/).pop(); }
+function updSaveState(){
+  const el=document.getElementById("fileInfo"); if(!el) return;
+  if(!inTauriApp()){ el.textContent=""; el.title=""; return; }   // 브라우저에선 파일 개념 없음
+  const en=curLang()==="en";
+  el.textContent = _curFile ? (baseName(_curFile)+(_dirtyFile?" •":"")) : (en?"(unsaved)":"(저장 안 됨)");
+  el.title = _curFile ? _curFile : (en?"Not saved to a file yet":"아직 파일로 저장되지 않았습니다");
+}
+function worldJSON(){
+  W.meta.title=document.getElementById("worldTitle").value;
+  saveTerrain();
+  return JSON.stringify(W,null,2);
+}
+/* 저장: 현재 파일이 있으면 그 파일에 덮어쓰기(커밋), 없으면 저장 위치 선택창.
+   saveAs=true 면 항상 새 위치 선택. 브라우저에선 다운로드로 폴백. */
+async function saveWorld(saveAs){
+  const json=worldJSON();
+  if(inTauriApp()){
+    try{
+      if(_curFile && !saveAs){
+        await tinvoke("write_world",{ path:_curFile, contents:json });
+      } else {
+        const name=(W.meta.title||"world")+".loreforge.json";
+        const p=await tinvoke("save_world_dialog",{ defaultName:name, contents:json });
+        if(!p) return;   // 취소
+        setCurFile(p);
+      }
+      _dirtyFile=false; updSaveState();
+      showSaved(curLang()==="en"?"Saved to file":"파일에 저장됨");
+    }catch(e){ appAlert((curLang()==="en"?"Save failed: ":"저장 실패: ")+e); }
+  } else {
+    const blob=new Blob([json],{type:"application/json"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download=(W.meta.title||"world")+".loreforge.json"; a.click();
+  }
+}
+/* 열기: 파일 탐색기로 .json 선택 → 현재 파일로 지정. 브라우저에선 파일 인풋 폴백. */
+async function openWorld(){
+  if(inTauriApp()){
+    try{
+      const r=await tinvoke("open_world_dialog");
+      if(!r) return;   // 취소
+      if(!applyLoadedWorld(r.contents)) return;
+      setCurFile(r.path); _dirtyFile=false; updSaveState();
+    }catch(e){ appAlert((curLang()==="en"?"Open failed: ":"열기 실패: ")+e); }
+  } else {
+    importJSON();
+  }
+}
+/* 불러온 JSON 텍스트를 세계로 적용(성공 시 true). importJSON/openWorld 공용 */
+function applyLoadedWorld(text){
+  try{
+    const d=JSON.parse(text);
+    W={meta:d.meta||{title:t("불러온 세계")},maps:d.maps,map:d.map,currentMap:d.currentMap,places:d.places||[],entities:d.entities||[],events:d.events||[],links:d.links||[],timelineManual:!!d.timelineManual,graphPos:d.graphPos||{}};
+    migrateMaps();
+    sel=null; document.getElementById("worldTitle").value=W.meta.title||t("불러온 세계");
+    applyMap(); loadTerrain(); renderMapBar(); fitView(); renderAll();
+    return true;
+  }catch(err){ appAlert((curLang()==="en"?"Couldn't load the file: ":"파일을 불러오지 못했습니다: ")+err.message); return false; }
+}
+function exportJSON(){ saveWorld(false); }   // 툴바 '저장' 버튼
+/* ============ 세계관 설정집 내보내기 (자립형 HTML) ============ */
+function wikiToDoc(text){
+  if(!text) return "";
+  const re=/\[\[([^\]]+)\]\]/g; let out="",last=0,m;
+  while((m=re.exec(text))){ out+=esc(text.slice(last,m.index));
+    const n=m[1].trim(); const it=allItems().find(x=>(x.name||"").toLowerCase()===n.toLowerCase());
+    out+= it?`<a href="#i${it.id}">${esc(it.name)}</a>`:esc(n); last=m.index+m[0].length; }
+  out+=esc(text.slice(last)); return out.replace(/\n/g,"<br>");
+}
+function exportBible(){
+  W.meta.title=document.getElementById("worldTitle").value;
+  const en=curLang()==="en";
+  const title=esc(W.meta.title||t("세계관"));
+  const shapeLabel=p=> p.shape==="area"?t("영역"):p.shape==="line"?t("경로"):p.shape==="label"?t("라벨"):t("장소");
+  const card=(i)=>{
+    const r=findItem(i.id).ref, meta=CATS[i.cat];
+    let h=`<div class="card" id="i${i.id}"><h3><span class="badge" style="background:${meta.color}">${meta.icon} ${t(meta.label)}</span> ${esc(r.name||t("(이름없음)"))}</h3>`;
+    if(r.image) h+=`<img src="${r.image}" alt="">`;
+    const metaBits=[];
+    if(i.cat==="place") metaBits.push((en?"Type: ":"유형: ")+esc(shapeLabel(r)));
+    if(i.cat==="event" && r.when) metaBits.push((en?"When: ":"시점: ")+esc(r.when));
+    const par = treeParentId(i.id); if(par) metaBits.push((en?"Parent: ":"소속: ")+"<a href='#i"+par+"'>"+esc(itemName(par))+"</a>");
+    if(metaBits.length) h+=`<p class="meta">${metaBits.join(" · ")}</p>`;
+    if(r.desc) h+=`<p>${wikiToDoc(r.desc)}</p>`;
+    if((r.tags||[]).length) h+=`<p class="tags">${r.tags.map(tg=>"#"+esc(tg)).join(" ")}</p>`;
+    const links=linksOf(i.id);
+    if(links.length) h+=`<p class="rel"><b>${en?"Links":"관계"}</b> · ${links.map(l=>`<a href="#i${l.other}">${esc(itemName(l.other))}</a> <i>(${l.out?"→":"←"} ${esc(l.label)})</i>`).join(", ")}</p>`;
+    const kids=childrenOf(i.id);
+    if(kids.length) h+=`<p class="rel"><b>${en?"Children":"하위"}</b> · ${kids.map(k=>`<a href="#i${k.id}">${esc(k.name)}</a>`).join(", ")}</p>`;
+    h+=`</div>`; return h;
+  };
+  let body=`<h1>${title}</h1>`;
+  const order=["place","person","faction","event","item","concept"];
+  for(const key of order){
+    let items=allItems().filter(i=>i.cat===key);
+    if(!items.length) continue;
+    if(key==="event") items = W.timelineManual
+      ? [...items].sort((a,b)=>(a.order??1e9)-(b.order??1e9))
+      : autoSortEvents(items);
+    body+=`<h2>${CATS[key].icon} ${t(CATS[key].label)} (${items.length})</h2>`;
+    items.forEach(i=>{ body+=card(i); });
+  }
+  if(W.maps.length) body+=`<h2>🗺️ ${en?"Maps":"지도"} (${W.maps.length})</h2><ul class="maps">${W.maps.map(m=>`<li>${esc(mapDepthMark(m))}${esc(m.name)}</li>`).join("")}</ul>`;
+  const doc=`<!DOCTYPE html><html lang="${curLang()}"><head><meta charset="UTF-8"><title>${title} — ${en?"Bible":"설정집"}</title>
+<style>
+body{max-width:820px;margin:40px auto;padding:0 20px;font-family:"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;color:#222;line-height:1.6;}
+h1{font-size:30px;border-bottom:3px solid #7aa2f7;padding-bottom:10px;}
+h2{font-size:21px;margin-top:38px;border-bottom:1px solid #ddd;padding-bottom:6px;}
+.card{border:1px solid #e3e3e3;border-radius:10px;padding:14px 16px;margin:14px 0;background:#fafbff;}
+.card h3{margin:0 0 8px;font-size:17px;}
+.badge{color:#fff;font-size:12px;padding:2px 9px;border-radius:11px;font-weight:700;}
+.card img{max-width:260px;max-height:220px;border-radius:8px;border:1px solid #ddd;display:block;margin:8px 0;}
+.meta{color:#666;font-size:13px;margin:4px 0;}
+.tags{color:#7a7a9a;font-size:13px;}
+.rel{font-size:13px;color:#444;margin:4px 0;}
+a{color:#3a63c0;text-decoration:none;} a:hover{text-decoration:underline;}
+.maps li{color:#444;}
+@media print{.card{break-inside:avoid;}}
+</style></head><body>${body}
+<footer style="margin-top:40px;color:#999;font-size:12px;">${en?"Loreforge Bible · print to save as PDF.":"Loreforge 설정집 · 인쇄하여 PDF로 저장할 수 있습니다."}</footer>
+</body></html>`;
+  const name=(W.meta.title||"world")+(en?" bible.html":" 설정집.html");
+  if(inTauriApp()){
+    tinvoke("save_html_dialog",{ defaultName:name, contents:doc }).then(p=>{
+      if(!p) return;   // 취소
+      showSaved(en?"Saved bible":"설정집 저장됨");
+    }).catch(e=>{ appAlert((en?"Save failed: ":"저장 실패: ")+e); });
+  } else {
+    const blob=new Blob([doc],{type:"text/html"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download=name; a.click();
+  }
+}
+/* ============ 지도 이미지(PNG) 내보내기 ============ */
+function hexA(hex,a){ const n=parseInt((hex||"#7aa2f7").slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
+function drawCover(c,img,dx,dy,dw,dh){ const ir=img.width/img.height, dr=dw/dh; let sw,sh,sx,sy;
+  if(ir>dr){ sh=img.height; sw=sh*dr; sx=(img.width-sw)/2; sy=0; } else { sw=img.width; sh=sw/dr; sx=0; sy=(img.height-sh)/2; }
+  c.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh); }
+function drawTextC(c,text,x,y,size,color,center,shadow){
+  c.font=`700 ${size}px "Malgun Gothic","Apple SD Gothic Neo",sans-serif`;
+  c.textAlign=center?"center":"left"; c.textBaseline="middle";
+  if(shadow){ c.lineWidth=4; c.lineJoin="round"; c.strokeStyle="rgba(0,0,0,.7)"; c.strokeText(text,x,y); }
+  c.fillStyle=color; c.fillText(text,x,y);
+}
+function exportMapPNG(){
+  saveTerrain();
+  const vis=W.places.filter(p=>visibleOnMap(p,W.currentMap));
+  let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+  const add=(x,y)=>{ if(x<minX)minX=x; if(y<minY)minY=y; if(x>maxX)maxX=x; if(y>maxY)maxY=y; };
+  vis.forEach(p=>{ if(p.points) p.points.forEach(pt=>add(pt.x,pt.y)); else add(p.x,p.y); });
+  if(minX>maxX){ minX=0;minY=0;maxX=1600;maxY=1200; }
+  const pad=140; minX-=pad; minY-=pad; maxX+=pad; maxY+=pad;
+  const w=Math.max(1,Math.round(maxX-minX)), h=Math.max(1,Math.round(maxY-minY));
+  const cv=document.createElement("canvas"); cv.width=w; cv.height=h; const c=cv.getContext("2d");
+  const m=curMap();
+  const doCompose=(bgImg)=>{
+    c.fillStyle=(m.bg&&m.bg.type==="color"&&m.bg.value)||"#161821"; c.fillRect(0,0,w,h);
+    c.save(); c.translate(-minX,-minY);
+    if(bgImg) drawCover(c,bgImg,0,0,(m.mapW||4000),(m.mapH||3000));
+    try{ c.drawImage(baseCanvas,0,0); }catch(e){}
+    try{ c.drawImage(canvas,0,0); }catch(e){}
+    vis.forEach(p=>{ if(p.shape==="area"&&p.points&&p.points.length>=2){ const pa=new Path2D(areaPathD(p));
+      c.fillStyle=hexA(p.color,0.28); c.fill(pa,"evenodd"); c.lineJoin="round"; c.strokeStyle=p.color||"#7aa2f7"; c.lineWidth=2.5; c.stroke(pa); } });
+    vis.forEach(p=>{ if(p.shape==="line"&&p.points&&p.points.length>=2){ const pa=new Path2D(p.curve?smoothOpenPath(p.points):polyPathD(p.points,false));
+      c.strokeStyle=p.color||"#7dcfff"; c.lineWidth=p.width||3; c.lineCap="round"; c.lineJoin="round"; c.stroke(pa); } });
+    vis.forEach(p=>{ if(p.shape==="area"){ const a=placeAnchor(p); drawTextC(c,p.name||"지역",a.x,a.y,15,"#fff",true,true); } });
+    vis.forEach(p=>{ if(p.shape==="area"||p.shape==="line"||p.shape==="label") return;
+      c.beginPath(); c.arc(p.x,p.y,12,0,Math.PI*2); c.fillStyle=CATS.place.color; c.fill();
+      c.lineWidth=3; c.strokeStyle="#12141d"; c.stroke();
+      drawTextC(c, p.icon||"📍", p.x, p.y, 15, "#fff", true, false);
+      drawTextC(c, p.name||"장소", p.x, p.y+24, 13, "#fff", true, true); });
+    vis.forEach(p=>{ if(p.shape==="label") drawTextC(c,p.name||"텍스트",p.x,p.y,p.size||22,p.color||"#e8ecff",true,true); });
+    c.restore();
+    const dataUrl=cv.toDataURL("image/png");
+    const name=(m.name||"map")+".png";
+    if(inTauriApp()){
+      const base64=dataUrl.split(",")[1];
+      tinvoke("save_png_dialog",{ defaultName:name, dataBase64:base64 }).then(p=>{
+        if(!p) return;   // 취소
+        showSaved(curLang()==="en"?"Saved PNG":"PNG로 저장됨");
+      }).catch(e=>{ appAlert((curLang()==="en"?"Save failed: ":"저장 실패: ")+e); });
+    } else {
+      const a=document.createElement("a"); a.href=dataUrl; a.download=name; a.click();
+    }
+  };
+  if(m.bg && m.bg.type==="image" && m.bg.value){
+    const img=new Image(); img.onload=()=>doCompose(img); img.onerror=()=>doCompose(null); img.src=m.bg.value;
+  } else doCompose(null);
+}
+function importJSON(){   // 브라우저 폴백(파일 인풋)
+  const inp=document.createElement("input"); inp.type="file"; inp.accept=".json";
+  inp.onchange=()=>{ const f=inp.files[0]; if(!f)return; const r=new FileReader();
+    r.onload=()=>{ if(applyLoadedWorld(r.result)){ setCurFile(null); _dirtyFile=false; updSaveState(); } };
+    r.readAsText(f); };
+  inp.click();
+}
+function newWorld(){
+  appConfirm(t("새로 만들면 현재 작업 내용이 모두 지워집니다. 계속하시겠습니까?"), ()=>{
+    W=blankWorld(); sel=null; cam={x:40,y:40,z:1};
+    document.getElementById("worldTitle").value=t("이름 없는 세계");
+    setCurFile(null); _dirtyFile=false; updSaveState();   // 새 세계 = 현재 파일 없음
+    applyCam(); applyMap(); loadTerrain(); renderMapBar(); renderAll();
+  });
+}
+document.getElementById("worldTitle").oninput=e=>{W.meta.title=e.target.value; markDirty();};
+
+/* ============ 예시 데이터 ============ */
+function loadDemo(){
+  W={
+    meta:{title:"아르카디아 연대기", scale:{perPx:0.4, unit:"km"}},
+    map:{bg:{type:"color",value:"#132033"},terrain:null,showGrid:true},
+    graphPos:{},
+    places:[
+      // ── 지역(면) ──
+      {id:"p_emp",name:"빛의 제국 강역",shape:"area",color:"#bb9af7",x:0,y:0,
+        points:[{x:900,y:520},{x:1520,y:500},{x:1660,y:980},{x:1160,y:1120},{x:840,y:880}],
+        holes:[[{x:1340,y:650},{x:1450,y:660},{x:1450,y:750},{x:1340,y:740}]],
+        desc:"[[세라핀 여제]]가 다스리는 대륙 중앙의 신정 국가 영토. [[은결 강]]이 가로지른다.",tags:["영토","제국"]},
+      {id:"p_north",name:"북부 서리 지대",shape:"area",color:"#7dcfff",x:0,y:0,
+        points:[{x:560,y:120},{x:1240,y:150},{x:1180,y:470},{x:600,y:450}],
+        desc:"[[북부 부족 연맹]]이 할거하는 얼어붙은 땅.",tags:["북부","혹한"]},
+      {id:"p_swamp",name:"검은 늪 지대",shape:"area",color:"#41506b",x:0,y:0,
+        points:[{x:1560,y:1000},{x:2060,y:1020},{x:2090,y:1410},{x:1560,y:1420}],
+        desc:"[[그림자 교단]]이 숨어드는 저주받은 습지.",tags:["늪","위험"]},
+      // ── 점(장소) ──
+      {id:"p_lumen",name:"성도 루멘",x:1180,y:760,parent:"p_emp",icon:"👑",desc:"[[빛의 제국]]의 수도이자 [[빛의 신앙]]의 총본산. [[세라핀 여제]]가 머문다.",tags:["수도","종교"]},
+      {id:"p_wind",name:"바람 마을",x:980,y:940,parent:"p_emp",desc:"[[카이든]]이 태어난 변경의 작은 마을.",tags:["고향"]},
+      {id:"p_port",name:"여명 항구",x:1480,y:720,parent:"p_emp",icon:"⚓",desc:"[[동부 대해]]로 나가는 교역항. [[상인 연합]]의 거점.",tags:["항구","교역"]},
+      {id:"p_kern",name:"무역 도시 케른",x:1280,y:900,parent:"p_emp",icon:"🏙️",desc:"[[상인 연합]]의 본거지.",tags:["교역"]},
+      {id:"p_fort",name:"국경 요새",x:960,y:640,parent:"p_emp",icon:"🏰",desc:"북부와 맞닿은 제국의 방벽.",tags:["국경","전쟁"]},
+      {id:"p_castle",name:"서리성",x:860,y:300,parent:"p_north",icon:"🏰",desc:"[[갈드]]가 웅거하는 얼음 성채.",tags:["요새"]},
+      {id:"p_cave",name:"얼음 동굴",x:680,y:230,parent:"p_north",icon:"❄️",desc:"[[서리 왕관]]이 잠든 동굴.",tags:["던전"]},
+      {id:"p_gate",name:"서리 관문",x:1080,y:420,parent:"p_north",desc:"북부와 제국을 잇는 협곡 관문. 여러 전투의 무대.",tags:["국경","전쟁"]},
+      {id:"p_swtown",name:"늪지 마을",x:1700,y:1150,parent:"p_swamp",desc:"늪 가장자리의 은둔 마을.",tags:["마을"]},
+      {id:"p_altar",name:"검은 제단",x:1950,y:1260,parent:"p_swamp",icon:"☠️",desc:"[[여명의 검]]이 봉인되었던 고대의 제단. [[그림자의 각성]]이 일어난 곳.",tags:["던전","마법"]},
+      // ── 선/경로 ──
+      {id:"ln_road",name:"왕도로",shape:"line",curve:true,color:"#e0af68",width:4,x:0,y:0,
+        points:[{x:1180,y:760},{x:1140,y:640},{x:1100,y:520},{x:1080,y:420}],
+        desc:"[[성도 루멘]]과 [[서리 관문]]을 잇는 제국 가도.",tags:["도로"]},
+      {id:"ln_river",name:"은결 강",shape:"line",curve:true,color:"#7dcfff",width:5,x:0,y:0,
+        points:[{x:640,y:160},{x:900,y:420},{x:1200,y:720},{x:1520,y:980},{x:1760,y:1120}],
+        desc:"북부에서 검은 늪까지 대륙을 가르며 흐르는 큰 강.",tags:["강"]},
+      // ── 라벨 ──
+      {id:"lb_sea",name:"동부 대해",shape:"label",x:1880,y:700,size:28,color:"#8fb6ff",desc:"",tags:[]},
+      {id:"lb_forest",name:"미개척 삼림",shape:"label",x:600,y:780,size:22,color:"#9ece6a",desc:"",tags:[]},
+    ],
+    entities:[
+      // 인물
+      {id:"e_kaiden",name:"카이든",cat:"person",desc:"[[바람 마을]] 출신의 젊은 검사. [[여명의 검]]을 찾아 여정을 떠난다.",tags:["주인공"]},
+      {id:"e_sera",name:"세라핀 여제",cat:"person",desc:"[[빛의 제국]]을 다스리는 여제. [[빛의 신앙]]의 수호자.",tags:["통치자","궁정"]},
+      {id:"e_riana",name:"리아나",cat:"person",desc:"[[카이든]]과 동행하는 궁수. [[상인 연합]]과 연이 있다.",tags:["동료"]},
+      {id:"e_orin",name:"현자 오린",cat:"person",desc:"[[룬 마법]]을 연구하는 늙은 현자. [[카이든]]의 스승.",tags:["현자","스승"]},
+      {id:"e_gald",name:"갈드",cat:"person",desc:"[[북부 부족 연맹]]의 총사령. [[세라핀 여제]]를 증오한다.",tags:["적","북부"]},
+      {id:"e_morg",name:"모르가나",cat:"person",desc:"[[그림자 교단]]의 교주. [[그림자 성배]]를 노리는 흑막.",tags:["흑막"]},
+      {id:"e_kyle",name:"기사단장 카일",cat:"person",desc:"[[세라핀 여제]]를 호위하는 [[서리 기사단]]의 단장.",tags:["궁정","기사"]},
+      // 세력
+      {id:"f_emp",name:"빛의 제국",cat:"faction",desc:"대륙 중앙을 지배하는 신정 국가.",tags:["국가"]},
+      {id:"f_frost",name:"서리 기사단",cat:"faction",parent:"f_emp",desc:"제국의 정예 기사단.",tags:["군대"]},
+      {id:"f_shadow",name:"그림자 교단",cat:"faction",desc:"검은 늪에 숨은 이단 교단.",tags:["이단"]},
+      {id:"f_merch",name:"상인 연합",cat:"faction",desc:"교역로를 쥔 상인 길드.",tags:["상업"]},
+      {id:"f_north",name:"북부 부족 연맹",cat:"faction",desc:"서리 지대의 부족 동맹.",tags:["부족"]},
+      // 아이템
+      {id:"i_sword",name:"여명의 검",cat:"item",desc:"[[검은 제단]]에 봉인된 전설의 성검.",tags:["성검"]},
+      {id:"i_crown",name:"서리 왕관",cat:"item",desc:"[[빙결의 룬]]이 깃든 북부의 보물.",tags:["보물"]},
+      {id:"i_grail",name:"그림자 성배",cat:"item",desc:"[[그림자 교리]]의 성물.",tags:["성물"]},
+      {id:"i_map",name:"룬 지도",cat:"item",desc:"봉인의 위치를 담은 고지도.",tags:["단서"]},
+      // 개념
+      {id:"c_rune",name:"룬 마법",cat:"concept",desc:"고대 문자를 새겨 힘을 발현하는 마법 체계.",tags:["마법체계"]},
+      {id:"c_fire",name:"화염의 룬",cat:"concept",parent:"c_rune",desc:"불을 다루는 룬 계열.",tags:["룬"]},
+      {id:"c_ice",name:"빙결의 룬",cat:"concept",parent:"c_rune",desc:"얼음을 다루는 룬 계열.",tags:["룬"]},
+      {id:"c_faith",name:"빛의 신앙",cat:"concept",desc:"제국의 국교.",tags:["종교"]},
+      {id:"c_dark",name:"그림자 교리",cat:"concept",desc:"금지된 어둠의 교리.",tags:["종교","금기"]},
+    ],
+    events:[
+      {id:"v_seal",name:"봉인의 시대",cat:"event",when:"제국력 0년",desc:"[[여명의 검]]이 [[검은 제단]]에 봉인되다.",tags:[]},
+      {id:"v_split",name:"대분열",cat:"event",when:"제국력 120년",desc:"북부가 제국에서 떨어져 나가다.",tags:["전쟁"]},
+      {id:"v_coro",name:"세라핀 즉위",cat:"event",when:"제국력 338년",desc:"[[세라핀 여제]]가 [[성도 루멘]]에서 즉위하다.",tags:["궁정"]},
+      {id:"v_battle",name:"서리 관문 전투",cat:"event",when:"제국력 340년",desc:"[[북부 부족 연맹]]이 [[서리 관문]]을 공격한 대전투.",tags:["전쟁"]},
+      {id:"v_journey",name:"카이든의 여정",cat:"event",when:"제국력 342년",desc:"[[카이든]]이 [[여명의 검]]을 찾아 마을을 떠나다.",tags:[]},
+      {id:"v_awaken",name:"그림자의 각성",cat:"event",when:"제국력 342년",desc:"[[모르가나]]가 [[검은 제단]]에서 어둠을 깨우다.",tags:["위기"]},
+    ],
+    links:[
+      // 주인공 무리
+      {from:"e_kaiden",to:"p_wind",rel:"출신"},
+      {from:"e_kaiden",to:"i_sword",rel:"찾는 중"},
+      {from:"e_kaiden",to:"e_riana",rel:"동료"},
+      {from:"e_kaiden",to:"e_orin",rel:"스승",relBack:"제자"},
+      {from:"e_kaiden",to:"e_sera",rel:"충성 맹세",relBack:"주시함"},
+      {from:"e_riana",to:"f_merch",rel:"연줄"},
+      {from:"e_orin",to:"c_rune",rel:"연구"},
+      {from:"e_orin",to:"i_map",rel:"소유"},
+      // 궁정 무리
+      {from:"e_sera",to:"f_emp",rel:"수장"},
+      {from:"e_sera",to:"p_lumen",rel:"거주"},
+      {from:"e_sera",to:"c_faith",rel:"수호"},
+      {from:"e_kyle",to:"e_sera",rel:"호위"},
+      {from:"e_kyle",to:"f_frost",rel:"지휘"},
+      {from:"f_frost",to:"p_gate",rel:"주둔"},
+      {from:"f_emp",to:"p_lumen",rel:"수도"},
+      {from:"f_emp",to:"c_faith",rel:"국교"},
+      // 악역 무리
+      {from:"e_morg",to:"f_shadow",rel:"교주"},
+      {from:"e_morg",to:"p_altar",rel:"거점"},
+      {from:"e_morg",to:"i_grail",rel:"추구"},
+      {from:"e_morg",to:"c_dark",rel:"창시"},
+      {from:"e_morg",to:"e_kaiden",rel:"노림",relBack:"경계"},
+      {from:"f_shadow",to:"p_altar",rel:"본거지"},
+      {from:"f_shadow",to:"c_dark",rel:"신봉"},
+      {from:"e_gald",to:"f_north",rel:"총사령"},
+      {from:"e_gald",to:"p_castle",rel:"거점"},
+      {from:"e_gald",to:"i_crown",rel:"소유"},
+      {from:"e_gald",to:"e_sera",rel:"증오",relBack:"경계"},
+      {from:"e_gald",to:"e_morg",rel:"밀약"},
+      {from:"f_north",to:"p_castle",rel:"본거지"},
+      // 상업 무리
+      {from:"f_merch",to:"p_kern",rel:"본거지"},
+      {from:"f_merch",to:"ln_road",rel:"관리"},
+      {from:"f_merch",to:"p_port",rel:"교역"},
+      // 개념/아이템
+      {from:"i_sword",to:"c_rune",rel:"관련"},
+      {from:"i_crown",to:"c_ice",rel:"깃듦"},
+      // 사건
+      {from:"v_seal",to:"i_sword",rel:"봉인"},
+      {from:"v_seal",to:"p_altar",rel:"발생지"},
+      {from:"v_split",to:"f_north",rel:"분열"},
+      {from:"v_split",to:"f_emp",rel:"분열"},
+      {from:"v_coro",to:"e_sera",rel:"즉위"},
+      {from:"v_coro",to:"p_lumen",rel:"발생지"},
+      {from:"v_battle",to:"p_gate",rel:"발생지"},
+      {from:"v_battle",to:"f_frost",rel:"방어"},
+      {from:"v_battle",to:"f_north",rel:"공격"},
+      {from:"v_battle",to:"e_gald",rel:"지휘"},
+      {from:"v_journey",to:"e_kaiden",rel:"주역"},
+      {from:"v_journey",to:"p_wind",rel:"출발지"},
+      {from:"v_awaken",to:"e_morg",rel:"주도"},
+      {from:"v_awaken",to:"p_altar",rel:"발생지"},
+    ]
+  };
+  migrateMaps();
+  sel=null; document.getElementById("worldTitle").value=W.meta.title;
+  applyMap(); loadTerrain(); renderMapBar(); renderAll(); fitView();
+}
+
+/* ============ 공통 ============ */
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function openModal(html){document.getElementById("modalBox").innerHTML=html; document.getElementById("modal").style.display="flex";}
+function closeModal(){
+  document.getElementById("modal").style.display="none";
+  // 구멍 확정 모달을 선택 없이(배경 클릭 등으로) 닫은 경우: 그려둔 구멍 도형을 정리
+  if(pendingHole){ pendingHole=null; drawPoly=null; previewPt=null; holeTarget=null; renderAreas(); }
+}
+document.getElementById("modal").onclick=e=>{if(e.target.id==="modal")closeModal();};
+/* 네이티브 alert/confirm 대신 앱 자체 모달(제목에 주소가 안 뜨고 문구를 우리가 정함) */
+function appAlert(msg){
+  openModal(`<p style="margin:2px 0 12px;white-space:pre-wrap;line-height:1.5">${esc(msg)}</p>
+    <div class="mrow"><button class="btn primary" onclick="closeModal()">${t("닫기")}</button></div>`);
+}
+let _confirmCb=null;
+function appConfirm(msg,onYes){
+  _confirmCb=onYes;
+  openModal(`<p style="margin:2px 0 12px;white-space:pre-wrap;line-height:1.5">${esc(msg)}</p>
+    <div class="mrow"><button class="btn" onclick="closeModal()">${t("취소")}</button>
+      <button class="btn primary" onclick="_runConfirm()">${t("확인")}</button></div>`);
+}
+function _runConfirm(){ const cb=_confirmCb; _confirmCb=null; closeModal(); if(cb) cb(); }
+function renderAll(){renderLeft(); renderDetail(); renderPins(); renderView(); markDirty();}
+
+/* ============ 일관성 점검 (규칙 기반·오프라인) ============ */
+function runConsistencyCheck(){
+  const issues=[], items=allItems(), ids=new Set(items.map(i=>i.id)), nameMap={};
+  const en=curLang()==="en", noName=en?"(no name)":"(무명)";
+  items.forEach(i=>{ const n=(i.name||"").trim().toLowerCase(); if(n)(nameMap[n]=nameMap[n]||[]).push(i); });
+  Object.values(nameMap).forEach(arr=>{ if(arr.length>1) issues.push({level:"warn",msg:en?`Duplicate name: "${arr[0].name}" (${arr.length})`:`이름 중복: "${arr[0].name}" (${arr.length}개)`,id:arr[0].id}); });
+  items.forEach(i=>{ const desc=findItem(i.id).ref.desc||"", re=/\[\[([^\]]+)\]\]/g; let m;
+    while((m=re.exec(desc))){ const n=m[1].trim().toLowerCase(); if(!nameMap[n]) issues.push({level:"warn",msg:en?`Link [[${m[1].trim()}]] in "${i.name||noName}" has no matching item`:`${i.name||noName}의 설명에 없는 링크 [[${m[1].trim()}]]`,id:i.id}); } });
+  const seen=new Set();
+  W.links.forEach(l=>{
+    if(!ids.has(l.from)||!ids.has(l.to)){ issues.push({level:"warn",msg:en?`Relation points to a nonexistent item`:`존재하지 않는 항목을 가리키는 관계`}); return; }
+    if(l.from===l.to) issues.push({level:"info",msg:(en?`Self relation: `:`자기 자신과의 관계: `)+itemName(l.from),id:l.from});
+    const k=[l.from,l.to].sort().join("|"); if(seen.has(k)) issues.push({level:"info",msg:(en?`Duplicate relation: `:`중복 관계: `)+`${itemName(l.from)} ↔ ${itemName(l.to)}`,id:l.from}); seen.add(k);
+  });
+  W.events.forEach(e=>{ if(!e.when) issues.push({level:"info",msg:(en?`Event with no date: `:`시점 미정 사건: `)+(e.name||noName),id:e.id}); });
+  const noDesc=items.filter(i=>!(findItem(i.id).ref.desc||"").trim() && i.shape!=="label");
+  if(noDesc.length) issues.push({level:"info",msg:en?`${noDesc.length} item(s) with empty description`:`설명이 비어 있는 항목 ${noDesc.length}개`});
+  return issues;
+}
+/* ── 일관성 점검 독(dock): 모달이 아닌 우상단 고정 패널. 결과는 다음 점검 전까지 유지 ── */
+let _aiChkResults=null;   // {items:[{level,msg,refs,jid}], stamp} | {error} | null(=미실행)
+let _aiChkBusy=false;
+function openConsistencyModal(){ toggleChkDock(); }   // 툴바 '점검' 버튼 → 독 열고닫기 토글
+function toggleChkDock(force){
+  const d=document.getElementById("chkDock"); if(!d) return;
+  const show = (force===undefined) ? d.classList.contains("off") : !!force;
+  d.classList.toggle("off", !show);
+  if(show) renderChkDock();
+}
+function renderChkDock(){
+  const body=document.getElementById("chkDockBody"); if(!body) return;
+  const issues=runConsistencyCheck();
+  const en=curLang()==="en";
+  const warn=issues.filter(i=>i.level==="warn").length, info=issues.length-warn;
+  let h=`<div class="chk-sec">${en?`Rule check · Warn ${warn} / Info ${info}`:`규칙 점검 · 경고 ${warn} / 참고 ${info}`}</div>`;
+  if(!issues.length) h+=`<p class="chk-ok">${t("문제 없음 👍")}</p>`;
+  else{ h+=`<div class="chk-list">`;
+    issues.forEach(it=>{ h+=`<div class="chk-row ${it.level}"${it.id?` data-jump="${it.id}"`:""}><span class="chk-dot"></span><span>${esc(it.msg)}</span></div>`; });
+    h+=`</div>`; }
+  h+=`<div class="chk-sec" style="margin-top:12px">${t("AI 심층 점검")}</div>`;
+  { const allDis=(W.meta.chkDismissed||[]).length;
+    if(allDis) h+=`<button class="chk-restore" onclick="openChkDismissedModal()">${en?`Manage dismissed (${allDis})`:`확인함 목록 관리 (${allDis}개)`}</button>`; }
+  if(_aiChkBusy) h+=`<p class="chk-muted">${t("AI가 점검 중…")}</p>`;
+  else if(_aiChkResults==null) h+=`<p class="chk-muted">${en?"Press 🔍 to check for logical / setting contradictions.":"🔍 버튼을 눌러 논리·설정 모순을 검사하세요."}</p>`;
+  else if(_aiChkResults.error) h+=`<p class="chk-err">${en?"Failed: ":"실패: "}${esc(_aiChkResults.error)}</p>`;
+  else if(!_aiChkResults.items.length) h+=`<p class="chk-ok">${t("모순 없음 👍")}</p>`;
+  else{
+    const dis=new Set(W.meta.chkDismissed||[]);
+    let shown=0, hidden=0, rows="";
+    _aiChkResults.items.forEach((it,idx)=>{
+      if(dis.has(chkKey(it))){ hidden++; return; }
+      shown++;
+      const tag=(it.refs&&it.refs.length)?` <span class="chk-refs">[${esc(it.refs.join(", "))}]</span>`:"";
+      rows+=`<div class="chk-row ${it.level}"><span class="chk-dot"></span><span class="chk-msg">${esc(it.msg)}${tag}</span><button class="chk-dismiss" title="${t("확인함(다음 점검부터 숨기기)")}" data-idx="${idx}">✓</button></div>`;
+    });
+    const stamp=esc(_aiChkResults.stamp||"");
+    h+=`<p class="chk-muted">${en?`${shown} found${hidden?` · ${hidden} hidden`:""} · as of ${stamp}`:`${shown}건${hidden?` · 숨김 ${hidden}`:""} · ${stamp} 기준`}</p>`;
+    h+= shown ? `<div class="chk-list">${rows}</div>` : `<p class="chk-ok">${t("표시할 모순 없음 👍")}</p>`;
+    if(hidden) h+=`<button class="chk-restore" onclick="restoreChkDismissed()">${en?`Show ${hidden} hidden`:`숨긴 ${hidden}개 다시 보기`}</button>`;
+  }
+  body.innerHTML=h;
+  // 규칙 점검 행: 클릭 시 해당 항목으로 이동(독은 유지)
+  body.querySelectorAll(".chk-row[data-jump]").forEach(r=>r.onclick=()=>selectItem(r.dataset.jump));
+  // AI 점검 행: ✓ 확인함 → 숨기기
+  body.querySelectorAll(".chk-dismiss").forEach(b=>b.onclick=()=>dismissChk(+b.dataset.idx));
+}
+/* 확인함: 지적 문구를 정규화한 값을 키로, 세계 데이터에 저장(저장·내보내기에 함께 유지) */
+function chkKey(it){ return (it.msg||"").replace(/\s+/g," ").trim(); }
+function dismissChk(idx){
+  if(!_aiChkResults||!_aiChkResults.items[idx]) return;
+  const k=chkKey(_aiChkResults.items[idx]); if(!k) return;
+  W.meta.chkDismissed=W.meta.chkDismissed||[];
+  if(!W.meta.chkDismissed.includes(k)){ W.meta.chkDismissed.push(k); markDirty(); }
+  renderChkDock();
+}
+function restoreChkDismissed(){
+  if(!_aiChkResults) return;
+  const cur=new Set(_aiChkResults.items.map(chkKey));   // 지금 결과에 해당하는 숨김만 해제
+  W.meta.chkDismissed=(W.meta.chkDismissed||[]).filter(k=>!cur.has(k));
+  markDirty(); renderChkDock();
+}
+/* 확인함 목록 관리 모달: 현재 점검 결과와 무관하게, 지금까지 확인함 처리된 문구를 전부 보여주고 개별 해제 */
+function openChkDismissedModal(){
+  const en=curLang()==="en";
+  const list=W.meta.chkDismissed||[];
+  const rows = list.length
+    ? list.map((k,idx)=>`<div class="chk-row"><span class="chk-msg">${esc(k)}</span><button class="chk-undo" data-idx="${idx}" title="${t("확인함 해제")}">✕</button></div>`).join("")
+    : `<p class="chk-muted" style="margin:6px 0">${en?"No dismissed items yet.":"확인함 처리된 항목이 없습니다."}</p>`;
+  openModal(`<h2>${t("확인함 목록")}</h2>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">${en?"Items marked as reviewed (✓) stay excluded from every future AI deep check, regardless of the current results. Remove one below to have it flagged again next time.":"확인함(✓) 처리된 항목은 현재 점검 결과와 상관없이 이후 모든 AI 심층 점검에서 계속 제외됩니다. 다시 점검받고 싶은 항목은 아래에서 개별로 해제하세요."}</p>
+    <div class="chk-list" id="chkDismissedList">${rows}</div>
+    <div class="mrow"><button class="btn primary" onclick="closeModal()">${t("닫기")}</button></div>`);
+  document.querySelectorAll("#chkDismissedList .chk-undo").forEach(b=>b.onclick=()=>undoChkDismiss(+b.dataset.idx));
+}
+function undoChkDismiss(idx){
+  const list=W.meta.chkDismissed||[];
+  if(idx<0||idx>=list.length) return;
+  list.splice(idx,1);
+  markDirty();
+  renderChkDock();          // 독의 숨김 개수 표시도 즉시 갱신
+  openChkDismissedModal();  // 모달은 열어둔 채 목록만 새로고침
+}
+/* ── AI 심층 점검: 규칙으로 못 잡는 논리·설정·시간·지리 모순을 찾는다 ── */
+function aiRelationsList(){
+  const rel0=curLang()==="en"?"related":"관계";
+  return W.links.map(l=>{
+    const a=itemName(l.from), b=itemName(l.to);
+    return l.relBack ? `${a} ←${l.relBack}/${l.rel||rel0}→ ${b}` : `${a} —${l.rel||rel0}→ ${b}`;
+  }).join("\n");
+}
+function aiTimelineList(){
+  const en=curLang()==="en", noDate=en?"(undated)":"(시점미정)", noName=en?"(no name)":"(무명)";
+  const evs=(W.events||[]).slice().sort((x,y)=>String(x.when||"").localeCompare(String(y.when||"")));
+  return evs.map(e=>{ const d=stripWiki(e.desc||"").replace(/\s+/g," ").trim();
+    return `${e.when||noDate}: ${e.name||noName}${d?` — ${d.slice(0,120)}`:""}`; }).join("\n");
+}
+async function aiConsistencyCheck(){
+  const c=aiCfg(); if(!c.baseURL||!c.model){ openAIModal(); return; }
+  toggleChkDock(true);                 // 독을 열고
+  _aiChkBusy=true; renderChkDock();    // "점검 중…" 표시
+  const list=aiWorldList(), geo=aiGeoContext(), rels=aiRelationsList(), tl=aiTimelineList();
+  const en=curLang()==="en";
+  const ex=(W.meta.chkDismissed||[]).filter(Boolean);
+  // 예외는 데이터 뒤(끝부분)에 배치해 최신성 효과로 준수율을 높인다
+  const exBlock = ex.length ? (en ? `
+
+[Exclusion list — must obey]
+The following were reviewed by the author as intentional settings. Never report any problem that is essentially the same as these, even if worded differently.
+- ${ex.join("\n- ")}
+
+Omit any finding that matches the exclusion list, and output only the other new contradictions as a JSON array.` : `
+
+[제외 목록 — 반드시 준수]
+아래는 작가가 의도한 설정으로 검토를 마친 항목입니다. 이것들과 본질적으로 같은 문제는 표현을 바꾸더라도 절대 보고하지 마세요.
+- ${ex.join("\n- ")}
+
+위 제외 목록에 해당하는 지적은 출력에서 모두 빼고, 그 외의 새로운 모순만 JSON 배열로 출력하세요.`) : "";
+  const sys=en
+    ? "You are a reviewer of worldbuilding settings. Find only the parts of the given material that contradict each other or don't add up. Do not invent new settings by guessing; point out only conflicts actually present in the material. Never report items in the provided 'exclusion list', even if worded differently. Write all values in English and output only a JSON array with no commentary."
+    : "당신은 세계관 설정의 감수자입니다. 주어진 세계관 자료에서 서로 모순되거나 앞뒤가 맞지 않는 부분만 찾아냅니다. 추측으로 새 설정을 만들지 말고, 자료에 실제로 드러난 충돌만 지적하세요. 제공되는 '제외 목록'의 항목은 표현이 달라도 절대 보고하지 마세요. 모든 값을 한국어로 작성하고, 설명 없이 JSON 배열만 출력하세요.";
+  const usr=en
+    ? `Find up to 10 logical contradictions / setting conflicts in the world material below.
+Types to look for: timeline conflicts (a dead or vanished character appearing in later events, etc.), relation contradictions (allied yet hostile, etc.), geographic contradictions (the same thing placed in different locations), setting clashes (descriptions that disagree), causal inconsistencies.
+If there are none, output an empty array [].
+In each item's refs, put only the 'exact names' of the related items (the part before '—' on each World items line).
+Output only a JSON array: [{"level":"warn|info","msg":"one sentence on what contradicts and why","refs":["name1","name2"]}]
+
+[World items]
+${list}${rels?`\n\n[Relations]\n${rels}`:""}${tl?`\n\n[Timeline]\n${tl}`:""}${geo?`\n\n[Geography]\n${geo}`:""}${exBlock}`
+    : `아래 세계관 자료에서 논리적 모순·설정 충돌을 찾아 최대 10개까지 지적하세요.
+살펴볼 유형 예시: 시간선 충돌(죽거나 사라진 인물이 이후 사건에 등장 등), 관계 모순(적대이면서 동맹 등), 지리 모순(같은 대상이 서로 다른 곳에 위치), 설정 상충(설명끼리 어긋남), 인과 불일치.
+문제가 없으면 빈 배열 []을 출력하세요.
+각 항목의 refs에는 관련 항목의 '정확한 이름'만 넣으세요(세계 항목 각 줄 '—' 앞부분).
+JSON 배열만 출력: [{"level":"warn|info","msg":"무엇이 왜 모순인지 한 문장","refs":["이름1","이름2"]}]
+
+[세계 항목]
+${list}${rels?`\n\n[관계]\n${rels}`:""}${tl?`\n\n[연표]\n${tl}`:""}${geo?`\n\n[지리]\n${geo}`:""}${exBlock}`;
+  const messages=[{role:"system",content:sys},{role:"user",content:usr}];
+  console.log("[AI 심층 점검] payload →", messages);
+  try{
+    const raw=await aiChat(messages, aiTemp("check"));   // 점검은 규칙 준수가 중요 → 낮은 온도(설정 가능)
+    console.log("[AI 심층 점검] 응답 ←", raw);
+    const arr=parseJsonLoose(raw), stamp=new Date().toLocaleTimeString();
+    if(!Array.isArray(arr)){ _aiChkResults={items:[], error:(curLang()==="en"?"Couldn't parse the result.":"결과를 해석하지 못했습니다."), stamp}; }
+    else{
+      const items=arr.map(it=>{
+        const refs=Array.isArray(it.refs)?it.refs.filter(Boolean):[];
+        return { level:(it.level==="warn")?"warn":"info", msg:it.msg||"", refs };
+      });
+      _aiChkResults={ items, stamp };
+    }
+  }catch(e){ _aiChkResults={items:[], error:e.message, stamp:new Date().toLocaleTimeString()}; }
+  _aiChkBusy=false; renderChkDock();   // 결과는 _aiChkResults에 남아 독을 닫아도 유지됨
+}
+
+/* ============ AI 창구 (OpenAI 호환) + 항목 확장 ============ */
+function aiCfg(){ try{ return JSON.parse(localStorage.getItem("we_ai")||"{}"); }catch(e){ return {}; } }
+
+/* ============ 설정 ============ */
+function appSettings(){ try{ return JSON.parse(localStorage.getItem("we_settings")||"{}"); }catch(e){ return {}; } }
+
+/* ============ 다국어(i18n) ============
+   설계: 한국어 원문을 그대로 키로 사용. lang=en이면 I18N_EN에서 영어를 꺼내고,
+   사전에 없으면 한국어로 폴백(→ 빠뜨려도 화면이 깨지지 않고 검증이 쉬움). */
+function curLang(){ return appSettings().lang==="en" ? "en" : "ko"; }
+/* var로 선언해 호이스팅 → 스크립트 상단(예: let W=blankWorld())에서 t()가 먼저 불려도
+   TDZ 오류 없이 안전하게 동작. t()는 사전이 아직 없으면 원문(한국어)로 폴백. */
+var I18N_EN = {
+  /* ── 상단 바 ── */
+  "이름 없는 세계":"Untitled World",
+  "세계관 제목":"World title",
+  "지도":"Map", "관계도":"Graph", "연표":"Timeline",
+  "되돌리기 (Ctrl+Z)":"Undo (Ctrl+Z)", "다시 실행 (Ctrl+Shift+Z)":"Redo (Ctrl+Shift+Z)",
+  "자동 저장 상태":"Autosave status",
+  "예시 불러오기":"Load Example", "설정":"Settings", "점검":"Check",
+  "설정집":"Bible", "지도PNG":"Map PNG", "저장(JSON)":"Save (JSON)",
+  "내보내기":"Export", "저장 (Ctrl+S)":"Save (Ctrl+S)", "다른 이름으로 저장 (Ctrl+Shift+S)":"Save As (Ctrl+Shift+S)",
+  "불러오기":"Import", "새로 만들기":"New",
+  /* ── 설정 메뉴 ── */
+  "언어 설정":"Language", "AI 기능 맥락 조절":"AI Context Settings",
+  "한국어":"Korean", "English":"English",
+  "항목당 설명 글자수 제한":"Char limit per item description",
+  "비우면 최대":"Max if empty",
+  "온도 기본값":"Reset temps", "← 뒤로":"← Back", "저장":"Save", "툴바 도움말":"Toolbar help",
+  "설명 확장":"Expand", "관계 제안":"Relations", "아이디어 제안":"Ideas", "심층 점검":"Deep Check",
+  /* ── AI 메뉴 ── */
+  "💡 새 항목 아이디어 제안":"💡 Suggest New Item Ideas",
+  "⚙ AI 연결 설정":"⚙ AI Connection Settings",
+  "AI 설정":"AI Settings", "모델":"Model", "연결 테스트":"Test Connection", "사용법":"Usage",
+  /* ── 점검 독 ── */
+  "일관성 점검":"Consistency Check", "AI 심층 점검":"AI Deep Check", "AI 심층 점검 실행":"Run AI Deep Check",
+  "문제 없음 👍":"No issues 👍", "모순 없음 👍":"No contradictions 👍",
+  "표시할 모순 없음 👍":"Nothing to show 👍", "AI가 점검 중…":"Checking…",
+  "닫기":"Close", "취소":"Cancel", "확인":"OK", "확인함(다음 점검부터 숨기기)":"Acknowledge (hide from next check)",
+  "확인함 목록":"Dismissed Items", "확인함 해제":"Restore this item",
+  /* ── 좌측/지도 툴바/패널 ── */
+  "설정 목록":"Item List", "검색…":"Search…", "상세 정보":"Details",
+  "드래그해서 너비 조절":"Drag to resize width",
+  "드래그해서 지도 크기 조절":"Drag to resize the map",
+  "이동 / 선택":"Pan / Select",
+  "장소 추가 (점, 클릭해 배치)":"Add place (point — click to place)",
+  "영역 그리기 (면, 드래그로 경계선)":"Draw area (region — drag the outline)",
+  "선/경로 그리기 (강·도로·여정, 드래그)":"Draw line/path (river · road · journey — drag)",
+  "텍스트 라벨 (클릭해 배치)":"Text label (click to place)",
+  "지형 그리기":"Paint terrain", "지우개":"Eraser", "거리 측정 (드래그)":"Measure distance (drag)",
+  "배경 설정":"Background settings", "격자 켜기 / 끄기":"Toggle grid",
+  "지형 브러시":"Terrain Brush", "색상":"Color", "굵기":"Size",
+  "단순화 강도":"Simplify Strength",
+  "그린 뒤 꼭짓점을 줄입니다<br>(0 = 원본 유지).":"Reduces vertices after drawing<br>(0 = keep original).",
+  "⬠ 영역: 지도를 드래그하여 곡선으로 그립니다 · 놓으면 완성 · Esc 취소":"⬠ Area: drag on the map to draw a curve · release to finish · Esc to cancel",
+  "✋ 이동 · 📍 장소 · ⬠ 영역 · 〰️ 선 · T 라벨 · 🖌️ 지형 · 📏 측정":"✋ Pan · 📍 Place · ⬠ Area · 〰️ Line · T Label · 🖌️ Terrain · 📏 Measure",
+  "화면 맞춤":"Fit View",
+  /* ── 카테고리 / 장소 유형 ── */
+  "장소":"Place", "인물":"Person", "세력":"Faction", "사건":"Event", "아이템":"Item", "개념":"Concept",
+  "도시":"City", "마을":"Village", "수도":"Capital", "성/요새":"Castle/Fort", "던전":"Dungeon", "성지":"Sanctuary", "자연":"Nature", "지역":"Region",
+  /* ── 상세 패널 ── */
+  "(이름없음)":"(no name)", "이름":"Name", "✨ 설명 확장":"✨ Expand Desc", "🔗 관계 제안":"🔗 Suggest Relations",
+  "상위 항목 (계층)":"Parent (hierarchy)", "(최상위)":"(top level)",
+  "이미지":"Image", "전체 보기":"Fit", "채우기":"Fill", "높이":"Height",
+  "이미지를 드래그하여 보이는 부분을 조절합니다.":"Drag the image to adjust the visible area.",
+  "PNG(투명 배경) 유지":"Keep PNG (transparent)", "이미지 변경":"Change Image", "이미지 추가":"Add Image", "제거":"Remove",
+  "선 색상":"Line color", "선 굵기":"Line width", "글자 크기":"Font size", "글자 색상":"Font color",
+  "마커 아이콘":"Marker icon", "기본 아이콘으로":"Reset to default icon", "또는 이모지 직접 입력":"or type an emoji",
+  "＋ 구멍 그리기":"＋ Draw hole", "모두 지우기":"Clear all",
+  "구멍 확정":"Confirm Hole",
+  "방금 그린 구멍 자리에 같은 모양의 새 면 영역도 함께 만들까요? 호수 안의 섬처럼, 뚫린 자리를 별도 지역으로 설정하고 싶을 때 유용해요.":
+    "Also create a new area in the same shape as the hole you just drew? Handy for things like an island inside a lake, where the cut-out spot needs its own region.",
+  "구멍만 뚫기":"Just cut the hole", "새 영역도 만들기":"Also create a new area",
+  "구멍 꼭짓점은 더블클릭으로 지우며, 링이 3개 미만이 되면 그 구멍이 삭제됩니다.":"Double-click a hole vertex to delete it; a hole is removed when its ring has fewer than 3 points.",
+  "시점 (자유 형식: 예 '제국력 342년')":"When (free form, e.g. 'Year 342 IC')",
+  "설명":"Description", "클릭하여 설명 입력…":"Click to add a description…", "설정 내용을 입력하세요.":"Enter the lore here.",
+  "[[이름]] 형식으로 입력하면 해당 항목으로 자동 연결됩니다.":"Type [[Name]] to auto-link to that item.",
+  "태그 (쉼표로 구분)":"Tags (comma-separated)", "＋ 연결":"＋ Link",
+  "수동 지정됨":"Manually set", "자동 감지 (포함 영역 없음)":"Auto (no containing area)", "자동으로 되돌리기":"Reset to auto",
+  "🔒 위치 잠금 (이동·편집 방지)":"🔒 Lock position (prevent move/edit)", "지도별 마커 표시":"Marker visibility per map",
+  "지도에서 보기":"Show on map", "항목 삭제":"Delete item",
+  /* ── 관계도 필터 ── */
+  "분류":"Category", "태그":"Tags", "태그 해제":"Clear tags", "⟲ 자동 정렬":"⟲ Auto arrange", "노드를 끌어 고정할 수 있어요":"Drag nodes to pin them",
+  /* ── 연표 ── */
+  "정렬":"Sort", "자동 (시점순)":"Auto (by date)", "수동":"Manual", "▲▼ 로 순서를 조절하세요.":"Use ▲▼ to reorder.", "시점 미정":"Undated",
+  /* ── 아이디어 제안 모달 ── */
+  "새 항목 아이디어":"New Item Ideas", "방향 (선택)":"Direction (optional)",
+  "예: 주인공의 라이벌, 고대의 유물":"e.g. the hero's rival, an ancient relic", "생성":"Generate", "생성 중…":"Generating…",
+  /* ── 자동저장 상태 ── */
+  "저장됨(지형 제외)":"Saved (without terrain)", "저장 실패 · 용량":"Save failed · storage full",
+  /* ── 관계 연결 모달 ── */
+  "관계 연결":"Link Relation", "연결할 항목":"Item to link", "관계 방식":"Relation type",
+  "단일 관계 (한 방향)":"Single (one direction)", "양방향 복합 (방향마다 다르게)":"Dual (different per direction)",
+  "예: 증오, 출신, 소속, 발생지":"e.g. hatred, origin, member of, occurred at", "예: 사랑, 보호, 추종":"e.g. love, protects, follows",
+  "연결":"Link", "정방향 (이 항목 → 상대)":"Forward (this → other)", "관계 (한 방향)":"Relation (one way)",
+  "연결할 다른 항목이 없습니다. 먼저 항목을 추가해 주세요.":"No other items to link. Add an item first.",
+  /* ── 지도 관리 / 확인 ── */
+  "지도 이름":"Map name", "지도가 하나뿐이라 삭제할 수 없습니다.":"Can't delete the only map.",
+  "이 항목을 삭제하시겠습니까? 연결된 관계도 함께 삭제됩니다.":"Delete this item? Its links will be removed too.",
+  "새로 만들면 현재 작업 내용이 모두 지워집니다. 계속하시겠습니까?":"Creating a new world erases all current work. Continue?",
+  /* ── 배경 설정 모달 ── */
+  "지도 배경 설정":"Map Background", "배경 이미지":"Background image", "이미지 파일 선택…":"Choose image file…",
+  "바다·용암·양피지 같은 텍스처를 넣으면 지도 전체 배경이 됩니다. 그 위에 브러시로 육지·산을 그려 원하는 세계를 완성합니다.":"A texture like sea, lava, or parchment becomes the whole map background. Paint land and mountains on top with the brush to build your world.",
+  "또는 단색 배경":"Or a solid color", "기본으로":"Reset", "완료":"Done",
+  /* ── 지도 바 / 축척 ── */
+  "상위 지도로":"To parent map", "↑ 상위":"↑ Up", "이름":"Rename", "＋ 새 지도":"＋ New map",
+  "축척 설정":"Scale", "축척":"Scale", "현재 지도 삭제":"Delete current map",
+  "1 픽셀당 거리 · 단위":"Distance per pixel · unit", "실제 거리":"Real distance", "보정":"Calibrate",
+  /* ── AI 출력 ── */
+  "설명에 추가":"Add to description", "추가":"Add", "추가됨":"Added",
+  "결과를 해석하지 못했습니다:":"Couldn't parse the result:",
+  "새로 제안할 관계가 없습니다.":"No new relations to suggest.", "제안이 없습니다.":"No suggestions.",
+  /* ── 설정집 내보내기 ── */
+  "세계관":"World", "영역":"Area", "경로":"Path", "라벨":"Label",
+  "불러온 세계":"Loaded World", "일치하는 항목 없음":"No matching item",
+  /* ── 지형 스와치 / 지도 이름 ── */
+  "바다":"Sea", "육지":"Land", "숲":"Forest", "산":"Mountain", "사막":"Desert", "설원":"Snow", "용암":"Lava", "늪":"Swamp",
+  "메인 지도":"Main Map", "기본 배율로 복귀":"Reset to default zoom", "기본 배율":"Default zoom"
+};
+function t(s){ return (curLang()==="en" && typeof I18N_EN!=="undefined" && I18N_EN) ? (I18N_EN[s]||s) : s; }
+/* 정적 HTML 요소 번역: data-i18n(텍스트) / data-i18n-title(툴팁) / data-i18n-ph(placeholder) */
+function applyStaticI18n(){
+  document.querySelectorAll("[data-i18n]").forEach(el=>{ el.textContent=t(el.getAttribute("data-i18n")); });
+  document.querySelectorAll("[data-i18n-html]").forEach(el=>{ el.innerHTML=t(el.getAttribute("data-i18n-html")); });
+  document.querySelectorAll("[data-i18n-title]").forEach(el=>{ el.title=t(el.getAttribute("data-i18n-title")); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el=>{ el.placeholder=t(el.getAttribute("data-i18n-ph")); });
+  document.documentElement.lang=curLang();
+}
+function setLang(l){
+  const s=appSettings(); if(l==="en") s.lang="en"; else delete s.lang;
+  localStorage.setItem("we_settings", JSON.stringify(s));
+  location.reload();   // 부팅이 localStorage에서 전부 다시 그리므로 새로고침이 가장 확실
+}
+
+/* 작업별 AI 온도 기본값. 설정에 값이 없으면 이 값으로 폴백(설정 미변경 시 기존과 동일 동작) */
+const AI_TEMP_DEFAULTS={ expand:1.0, relation:1.0, idea:1.0, check:0.2 };
+function aiTemp(key){
+  const t=(appSettings().temps||{})[key];
+  return (typeof t==="number" && isFinite(t)) ? t : AI_TEMP_DEFAULTS[key];
+}
+function toggleLang(){ setLang(curLang()==="en"?"ko":"en"); }   // 라벨 클릭 → 즉시 전환(새로고침)
+/* 하단 툴바 도움말(#mapHint) 표시/숨김 */
+function applyMapHint(){
+  const el=document.getElementById("mapHint"); if(!el) return;
+  el.style.display = appSettings().hideMapHint ? "none" : "";
+}
+function toggleMapHint(){
+  const s=appSettings();
+  if(s.hideMapHint) delete s.hideMapHint; else s.hideMapHint=true;
+  localStorage.setItem("we_settings", JSON.stringify(s));
+  applyMapHint(); openSettingsMenu();   // 즉시 반영 + 토글 라벨 갱신
+}
+function saveDefZoom(v){
+  const s=appSettings(), n=parseInt((v||"").trim(),10);
+  if((v||"").trim()==="" || isNaN(n) || n<=0) delete s.defZoom; else s.defZoom=Math.max(20,Math.min(300,n));
+  localStorage.setItem("we_settings", JSON.stringify(s));
+}
+function openSettingsMenu(){
+  const en=curLang()==="en", s=appSettings();
+  const dz=(typeof s.defZoom==="number")?s.defZoom:"";
+  const row=(label,ctrl)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;padding:8px 12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px">
+      <span style="font-size:13px">${label}</span><span style="display:flex;align-items:center;gap:3px">${ctrl}</span></div>`;
+  openModal(`<h2>${t("설정")}</h2>
+    ${row(t("언어 설정"), `<button class="btn primary" style="padding:4px 14px" onclick="toggleLang()">${en?"ENG":"한국어"}</button>`)}
+    ${row(t("기본 배율"),
+      `<input class="f" type="number" min="20" max="300" value="${dz}" placeholder="100" style="width:70px;margin:0;text-align:right" onchange="saveDefZoom(this.value)"><span style="color:var(--muted)">%</span>`)}
+    ${row(t("툴바 도움말"), `<button class="btn${s.hideMapHint?"":" primary"}" style="padding:4px 14px" onclick="toggleMapHint()">${s.hideMapHint?(en?"Off":"꺼짐"):(en?"On":"켜짐")}</button>`)}
+    <button class="btn" style="width:100%;margin-top:2px" onclick="openContextSettings()">${t("AI 기능 맥락 조절")}</button>`);
+}
+function openContextSettings(){
+  const s=appSettings(), tv0=s.temps||{}, en=curLang()==="en";
+  const tv=k=>(typeof tv0[k]==="number")?tv0[k]:AI_TEMP_DEFAULTS[k];
+  const trow=(id,label,k)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0">
+      <span style="font-size:13px">${label}</span>
+      <input class="f" id="${id}" type="number" min="0" max="1.5" step="0.1" value="${tv(k)}" style="width:80px;margin:0">
+    </div>`;
+  openModal(`<h2>${t("AI 기능 맥락 조절")}</h2>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">${en?"When sending to the AI, each item's description is trimmed to this many characters. <b>Blank = full description.</b>":"AI에 보낼 때 항목마다 설명을 여기 적은 글자수까지만 담습니다. <b>비워두면 최대(전체 설명)</b>로 담습니다."}</p>
+    <label class="fl">${t("항목당 설명 글자수 제한")}</label>
+    <input class="f" id="ctxCap" type="number" min="0" value="${s.ctxCap!=null?s.ctxCap:""}" placeholder="${t("비우면 최대")}">
+    <label class="fl" style="margin-top:14px">${en?"AI temperature by task":"작업별 AI 온도"} <span style="color:var(--muted);font-weight:400;font-size:11px">${en?"(advanced · 0–1.5 · lower = consistent, higher = creative)":"(고급 · 0~1.5 · 낮을수록 일관적, 높을수록 창의적)"}</span></label>
+    ${trow("tExpand",t("설명 확장"),"expand")}
+    ${trow("tRelation",t("관계 제안"),"relation")}
+    ${trow("tIdea",t("아이디어 제안"),"idea")}
+    ${trow("tCheck",t("심층 점검"),"check")}
+    <div class="mrow"><button class="btn" onclick="resetAITemps()">${t("온도 기본값")}</button><button class="btn" onclick="openSettingsMenu()">${t("← 뒤로")}</button><button class="btn primary" onclick="saveContextSettings()">${t("저장")}</button></div>`);
+}
+function resetAITemps(){
+  [["tExpand","expand"],["tRelation","relation"],["tIdea","idea"],["tCheck","check"]].forEach(([id,k])=>{
+    const el=document.getElementById(id); if(el) el.value=AI_TEMP_DEFAULTS[k];
+  });
+}
+function saveContextSettings(){
+  const s=appSettings();
+  const v=(document.getElementById("ctxCap").value||"").trim();
+  if(v==="") delete s.ctxCap; else { const n=parseInt(v,10); if(!isNaN(n)&&n>=0) s.ctxCap=n; else delete s.ctxCap; }
+  // 온도: 기본값과 다른 것만 저장(미변경 시 향후 기본값 변경도 자동 반영)
+  const temps={};
+  [["tExpand","expand"],["tRelation","relation"],["tIdea","idea"],["tCheck","check"]].forEach(([id,k])=>{
+    let n=parseFloat((document.getElementById(id).value||"").trim());
+    if(!isNaN(n)){ n=Math.max(0, Math.min(1.5, n)); if(n!==AI_TEMP_DEFAULTS[k]) temps[k]=n; }
+  });
+  if(Object.keys(temps).length) s.temps=temps; else delete s.temps;
+  localStorage.setItem("we_settings", JSON.stringify(s));
+  closeModal();
+}
+function openAIModal(){
+  const c=aiCfg(), en=curLang()==="en";
+  openModal(`<h2>${t("AI 설정")}</h2>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">${en?"OpenAI-compatible endpoint. Use a local LLM (Ollama · LM Studio) or a cloud API. The key is stored only on this device.":"OpenAI 호환 엔드포인트. 로컬 LLM(Ollama·LM Studio) 또는 클라우드 API를 쓸 수 있어요. 키는 이 기기에만 저장됩니다."}</p>
+    <label class="fl">${en?"Endpoint (baseURL)":"엔드포인트 (baseURL)"}</label>
+    <input class="f" id="aiBase" value="${esc(c.baseURL||"http://localhost:11434/v1")}" placeholder="http://localhost:11434/v1">
+    <label class="fl">${en?"API mode":"API 방식"}</label>
+    <select class="f" id="aiMode">
+      <option value="chat" ${c.mode!=="completion"?"selected":""}>Chat · /chat/completions</option>
+      <option value="completion" ${c.mode==="completion"?"selected":""}>Completion · /completions</option>
+    </select>
+    <label class="fl">${t("모델")}</label>
+    <input class="f" id="aiModel" value="${esc(c.model||"llama3.1")}" placeholder="${en?"e.g. llama3.1, gpt-4o-mini":"예: llama3.1, gpt-4o-mini"}">
+    <label class="fl">${en?"API key (blank for local)":"API 키 (로컬은 비워도 됨)"}</label>
+    <input class="f" id="aiKey" type="password" value="${esc(c.apiKey||"")}" placeholder="sk-...">
+    <div class="mrow" style="justify-content:space-between">
+      <button class="btn" title="${t("사용법")}" onclick="openAIHelp()" style="width:34px;padding:6px 0;font-weight:700">?</button>
+      <span style="display:flex;gap:8px"><button class="btn" onclick="testAI()">${t("연결 테스트")}</button><button class="btn primary" onclick="saveAI()">${t("저장")}</button></span>
+    </div>`);
+}
+/* AI 연결 사용법 팝업 (엔드포인트 프리셋 표) */
+function openAIHelp(){
+  const en=curLang()==="en";
+  const rows=[
+    ["OpenAI (GPT)","https://api.openai.com/v1"],
+    ["Google Gemini","https://generativelanguage.googleapis.com/v1beta/openai"],
+    ["Anthropic Claude","https://api.anthropic.com/v1"],
+    ["Ollama Cloud","https://ollama.com/v1"],
+    [en?"Local Ollama":"로컬 Ollama","http://localhost:11434/v1"],
+    ["LM Studio","http://localhost:1234/v1"],
+    ["Groq","https://api.groq.com/openai/v1"],
+    ["OpenRouter","https://openrouter.ai/api/v1"],
+    ["DeepSeek","https://api.deepseek.com"],
+  ];
+  const trs=rows.map(r=>`<tr>
+    <td style="padding:7px 12px;white-space:nowrap;font-weight:600;border-top:1px solid var(--line)">${esc(r[0])}</td>
+    <td style="padding:7px 12px;border-top:1px solid var(--line);word-break:break-all"><code style="font-size:12.5px">${esc(r[1])}</code></td></tr>`).join("");
+  openModal(`<h2>${en?"How to connect AI":"AI 연결 사용법"}</h2>
+    <p style="font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:6px">${en
+      ?"Enter an <b>Endpoint</b>, <b>API key</b>, and <b>Model</b> to connect any OpenAI-compatible service. Leave the key blank for local servers (Ollama · LM Studio). Use the exact model name from your provider."
+      :"<b>엔드포인트</b>·<b>API 키</b>·<b>모델</b>만 넣으면 OpenAI 호환 서비스라면 무엇이든 연결됩니다. 로컬 서버(Ollama·LM Studio)는 키를 비워두세요. 모델명은 프로바이더가 주는 정확한 이름을 씁니다."}</p>
+    <p style="font-size:12px;color:var(--gold);font-weight:600;margin:0 0 10px;line-height:1.5">${en
+      ?"⚠ Endpoints below are as of July 2026 and may change — if a connection fails, check your provider's docs."
+      :"⚠ 아래 엔드포인트는 2026년 7월 기준이며 바뀔 수 있어요 — 연결이 안 되면 프로바이더 문서를 확인하세요."}</p>
+    <div style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead><tr style="position:sticky;top:0;background:var(--panel)">
+          <th style="text-align:left;padding:7px 12px">${en?"Provider":"프로바이더"}</th>
+          <th style="text-align:left;padding:7px 12px">${en?"Endpoint":"엔드포인트"}</th>
+        </tr></thead><tbody>${trs}</tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">${en
+      ?"Tip: OpenRouter reaches GPT · Claude · Gemini and more with one key."
+      :"팁: OpenRouter는 키 하나로 GPT·Claude·Gemini 등을 다 씁니다."}</p>
+    <div class="mrow"><button class="btn primary" onclick="openAIModal()">${t("← 뒤로")}</button></div>`);
+}
+function saveAI(){
+  const md=document.getElementById("aiMode");
+  localStorage.setItem("we_ai", JSON.stringify({
+    baseURL:(document.getElementById("aiBase").value||"").trim().replace(/\/$/,""),
+    model:(document.getElementById("aiModel").value||"").trim(),
+    apiKey:(document.getElementById("aiKey").value||"").trim(),
+    mode:(md&&md.value==="completion")?"completion":"chat" }));
+  closeModal();
+}
+/* 메시지 배열 → 텍스트 컴플리션용 프롬프트로 직렬화 */
+function messagesToPrompt(messages){
+  return messages.map(m=>m.content).join("\n\n").trim()+"\n\n";
+}
+async function aiChat(messages, temperature){
+  const c=aiCfg(); if(!c.baseURL||!c.model) throw new Error(curLang()==="en"?"AI is not configured.":"AI가 설정되지 않았습니다.");
+  const headers={ "Content-Type":"application/json", ...(c.apiKey?{Authorization:"Bearer "+c.apiKey}:{}) };
+  const temp = (typeof temperature==="number") ? temperature : 0.8;   // 미지정 시 기본 0.8
+  const completion = (c.mode==="completion");
+  const url = c.baseURL + (completion ? "/completions" : "/chat/completions");
+  const body = completion
+    ? JSON.stringify({ model:c.model, prompt:messagesToPrompt(messages), temperature:temp, max_tokens:2048 })
+    : JSON.stringify({ model:c.model, messages, temperature:temp });
+  // 데스크톱(Tauri) 빌드에선 Rust 커스텀 명령 ai_fetch 로 요청 → CORS 없이 로컬·클라우드 모두 연결.
+  // 브라우저에선 일반 fetch 로 폴백.
+  const invoke = (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) || null;
+  let status, text;
+  if(invoke){
+    const r = await invoke("ai_fetch", { url, method:"POST", headers, body });
+    status = r.status; text = r.body;
+  } else {
+    const res = await fetch(url,{method:"POST",headers,body});
+    status = res.status; text = await res.text();
+  }
+  if(status<200 || status>=300) throw new Error((curLang()==="en"?"Request failed ":"요청 실패 ")+status+": "+(text||"").slice(0,180));
+  const d=JSON.parse(text), ch=d.choices&&d.choices[0];
+  return (completion ? (ch&&ch.text) : (ch&&ch.message&&ch.message.content)) || "";
+}
+async function testAI(){
+  const b=document.getElementById("aiBase"), m=document.getElementById("aiModel"), k=document.getElementById("aiKey"), md=document.getElementById("aiMode");
+  if(b&&m) localStorage.setItem("we_ai", JSON.stringify({ baseURL:(b.value||"").trim().replace(/\/$/,""), model:(m.value||"").trim(), apiKey:((k&&k.value)||"").trim(), mode:(md&&md.value==="completion")?"completion":"chat" }));
+  try{ await aiChat([{role:"user",content:"연결 확인용입니다. '퐁'이라고만 답하세요."}]); appAlert(curLang()==="en"?"Connection OK":"연결 확인됨"); }
+  catch(e){ appAlert((curLang()==="en"?"Connection failed: ":"연결 실패: ")+e.message); }
+}
+function aiContextOf(id){
+  const it=findItem(id); if(!it) return ""; const r=it.ref, en=curLang()==="en", noName=en?"(no name)":"(무명)";
+  const L=en?[`Name: ${r.name||noName}`, `Category: ${t(CATS[it.cat].label)}`]:[`이름: ${r.name||noName}`, `분류: ${CATS[it.cat].label}`];
+  if(it.kind==="place" && r.shape!=="line" && r.shape!=="label"){ const A=areaOf(r); if(A) L.push(en?`Area: ${A.name} (${_quad(A,placeAnchor(r))} of it)`:`소속 지역: ${A.name} (그 지역의 ${_quad(A,placeAnchor(r))})`); }
+  if(r.when) L.push((en?"When: ":"시점: ")+r.when);
+  if(r.tags&&r.tags.length) L.push((en?"Tags: ":"태그: ")+r.tags.join(", "));
+  const rels=linksOf(id).map(l=>`${itemName(l.other)}(${l.label})`); if(rels.length) L.push((en?"Relations: ":"관계: ")+rels.join(", "));
+  const kids=childrenOf(id).map(k=>k.name); if(kids.length) L.push((en?"Children: ":"하위: ")+kids.join(", "));
+  if((r.desc||"").trim()) L.push((en?"Current description: ":"현재 설명: ")+stripWiki(r.desc));
+  return L.join("\n");
+}
+let _aiOut=null;
+async function aiExpand(id){
+  const c=aiCfg(); if(!c.baseURL||!c.model){ openAIModal(); return; }
+  const it=findItem(id); if(!it) return; const r=it.ref;
+  openModal(`<h2>${curLang()==="en"?"AI Expand":"AI 확장"} · ${esc(r.name||"")}</h2>
+    <div id="aiOut" class="wiki-view" style="max-height:300px;overflow:auto">${t("생성 중…")}</div>
+    <div class="mrow"><button class="btn" onclick="closeModal()">${t("취소")}</button>
+      <button class="btn primary" id="aiApply" disabled onclick="aiApplyExpand('${id}')">${t("설명에 추가")}</button></div>`);
+  const en=curLang()==="en";
+  const sys=en
+    ? "You are an assistant that helps with worldbuilding. Expand the given item richly and concretely, consistent with the existing setting. Write only in English (do not use any other language). Output only the description body in 2–4 paragraphs, with no headings, lists, or filler."
+    : "당신은 세계관 창작을 돕는 조수입니다. 주어진 항목을 기존 설정과 모순 없이 풍부하고 구체적으로 확장하세요. 출력은 반드시 한국어로만 작성하세요(다른 언어 사용 금지). 2~4문단의 설명 본문만 출력하고, 머리말·목록·군더더기는 넣지 마세요.";
+  const usrMsg=(en?"Please expand the description of the following item.":"다음 항목의 설명을 확장해 주세요.")+`\n\n${aiContextOf(id)}`;
+  try{
+    const out=await aiChat([{role:"system",content:sys},{role:"user",content:usrMsg}], aiTemp("expand"));   // 창작 확장 → 높은 온도(설정 가능)
+    _aiOut=out; const el=document.getElementById("aiOut"); if(el) el.textContent=out;
+    const b=document.getElementById("aiApply"); if(b) b.disabled=!out;
+  }catch(e){ const el=document.getElementById("aiOut"); if(el) el.textContent=(curLang()==="en"?"Failed: ":"실패: ")+e.message; }
+}
+function aiApplyExpand(id){ const it=findItem(id); if(!it||!_aiOut) return;
+  it.ref.desc=((it.ref.desc||"").trim()?it.ref.desc.trim()+"\n\n":"")+_aiOut.trim(); _aiOut=null;
+  closeModal(); renderDetail(); renderLeft(); markDirty(); }
+
+/* 응답에서 JSON 배열/객체를 느슨하게 추출 (모델이 코드펜스·군더더기를 붙여도 파싱) */
+function parseJsonLoose(text){
+  let t=(text||"").replace(/```json/gi,"").replace(/```/g,"").trim();
+  const a=t.indexOf("["), b=t.lastIndexOf("]");
+  if(a>=0&&b>a){ try{ return JSON.parse(t.slice(a,b+1)); }catch(e){} }
+  const oa=t.indexOf("{"), ob=t.lastIndexOf("}");
+  if(oa>=0&&ob>oa){ try{ return JSON.parse(t.slice(oa,ob+1)); }catch(e){} }
+  return null;
+}
+/* 세계 항목을 분류별로 (이름 — 설명) 나열. 이름은 '—' 앞부분.
+   평소엔 설명 전체를 담고, 총량이 예산(문자수)을 넘으면 그때만 항목별로 줄인다. */
+const AI_CTX_BUDGET=30000; // 대략 문자수 상한(한국어 ≈ 토큰 근사)
+function aiWorldList(){
+  const clean=s=>stripWiki(s||"").replace(/\s+/g," ").trim();
+  const items=allItems(), noName=curLang()==="en"?"(no name)":"(무명)";
+  const build=(cap)=>{ const by={};
+    items.forEach(i=>{ let d=clean(findItem(i.id).ref.desc); if(cap&&d.length>cap) d=d.slice(0,cap)+"…";
+      (by[i.cat]=by[i.cat]||[]).push(d?`${i.name} — ${d}`:(i.name||noName)); });
+    return Object.entries(by).map(([k,ns])=>`${t(CATS[k].label)}:\n  - ${ns.join("\n  - ")}`).join("\n"); };
+  const uc=appSettings().ctxCap;                              // 설정: 항목당 설명 글자수 제한(비우면 최대)
+  const userCap=(typeof uc==="number"&&uc>0)?uc:0;
+  const full=build(userCap);
+  if(full.length<=AI_CTX_BUDGET) return full;                 // 예산 내 → 설정대로(또는 전체)
+  const trimmed=build(Math.max(60, Math.floor(AI_CTX_BUDGET/Math.max(items.length,1)))); // 초과 → 항목별 축약
+  return trimmed.length>AI_CTX_BUDGET ? trimmed.slice(0,AI_CTX_BUDGET)+"…" : trimmed;      // 최종 하드 캡
+}
+/* ── 지리 요약(자연어) : 방위(위=북)·포함·연결·거리를 문장으로 ── */
+function _compass(dx,dy){ const deg=(Math.atan2(dx,-dy)*180/Math.PI+360)%360; const i=Math.round(deg/45)%8;
+  return (curLang()==="en"?["N","NE","E","SE","S","SW","W","NW"]:["북","북동","동","남동","남","남서","서","북서"])[i]; }
+function _quad(area,pt){ const xs=area.points.map(p=>p.x),ys=area.points.map(p=>p.y); const mnX=Math.min(...xs),mxX=Math.max(...xs),mnY=Math.min(...ys),mxY=Math.max(...ys); const fx=(pt.x-mnX)/((mxX-mnX)||1),fy=(pt.y-mnY)/((mxY-mnY)||1);
+  if(curLang()==="en"){ const ns=fy<0.34?"N":fy>0.66?"S":"",ew=fx<0.34?"W":fx>0.66?"E":""; return (ns+ew)?`${ns}${ew} part`:"center"; }
+  const ns=fy<0.34?"북":fy>0.66?"남":"",ew=fx<0.34?"서":fx>0.66?"동":""; return (ns+ew)?(ns+ew+"부"):"중앙부"; }
+function _near(pt,list,ex){ let best=null,bd=Infinity; list.forEach(q=>{ if(q.id===ex||q.shape==="line"||q.shape==="label")return; const a=placeAnchor(q),d=Math.hypot(a.x-pt.x,a.y-pt.y); if(d<bd){bd=d;best=q;} }); return best; }
+function aiGeoContext(){
+  const P=W.places; if(!P.some(p=>p.shape!=="label")) return "";
+  const en=curLang()==="en";
+  const sc=W.meta.scale, out=[en?"Geography summary (bearings: up on the map = North):":"지리 요약 (방위는 지도 위=북 기준):"];
+  W.maps.forEach(m=>{
+    const on=P.filter(p=>p.mapId===m.id); if(!on.length) return;
+    if(W.maps.length>1) out.push(en?`[Map: ${m.name}]`:`[지도: ${m.name}]`);
+    const areas=on.filter(p=>p.shape==="area");
+    areas.forEach(a=>{
+      const kids=on.filter(p=>{const A=areaOf(p); return A&&A.id===a.id;});
+      out.push((en?`- Area '${a.name}'`:`- 영역 '${a.name}'`)+(kids.length?(en?` (contains: ${kids.map(k=>k.name).join(", ")})`:` (포함: ${kids.map(k=>k.name).join(", ")})`):""));
+      kids.forEach(k=>{ if(k.shape==="line"||k.shape==="label")return; out.push(en?`  · ${k.name}: ${_quad(a,placeAnchor(k))} of '${a.name}'`:`  · ${k.name}: '${a.name}'의 ${_quad(a,placeAnchor(k))}`); });
+    });
+    on.filter(p=>(!p.shape||p.shape==="point")&&!areaOf(p)).forEach(p=>out.push(en?`- ${p.name}: not inside any area`:`- ${p.name}: 어느 영역에도 속하지 않음`));
+    if(areas.length>=2 && areas.length<=6) for(let i=0;i<areas.length;i++)for(let j=i+1;j<areas.length;j++){
+      const A=placeAnchor(areas[i]),B=placeAnchor(areas[j]); out.push(en?`- '${areas[i].name}' is to the ${_compass(A.x-B.x,A.y-B.y)} of '${areas[j].name}'`:`- '${areas[i].name}'은(는) '${areas[j].name}'의 ${_compass(A.x-B.x,A.y-B.y)}쪽`); }
+    on.filter(p=>p.shape==="line").forEach(ln=>{ if(!ln.points||ln.points.length<2)return;
+      const na=_near(ln.points[0],on,ln.id), nb=_near(ln.points[ln.points.length-1],on,ln.id);
+      let len=0; for(let k=0;k<ln.points.length-1;k++) len+=Math.hypot(ln.points[k+1].x-ln.points[k].x,ln.points[k+1].y-ln.points[k].y);
+      const A0=na?na.name:(en?"one point":"한 지점"), B0=nb?nb.name:(en?"another point":"다른 지점");
+      out.push((en?`- Line '${ln.name}': `:`- 선 '${ln.name}': `)+`${A0} ↔ ${B0}`+(sc&&sc.perPx?(en?` (length ≈ ${Math.round(len*sc.perPx)} ${sc.unit||"km"})`:` (길이 약 ${Math.round(len*sc.perPx)} ${sc.unit||"km"})`):"")); });
+  });
+  if(sc&&sc.perPx) out.push((en?"Scale: ":"축척: ")+`1px = ${sc.perPx} ${sc.unit||"km"}`);
+  return out.join("\n");
+}
+
+/* ============ AI 메뉴 ============ */
+function openAIMenu(){
+  const en=curLang()==="en";
+  openModal(`<h2>AI</h2>
+    <button class="btn" style="width:100%;margin-bottom:8px" onclick="openIdeaModal()">${t("💡 새 항목 아이디어 제안")}</button>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">${en?"For relation suggestions, select an item and use <b>🔗 Relations</b> in the detail panel.":"관계 제안은 항목을 선택한 뒤, 상세 패널의 <b>🔗 관계 제안</b>에서."}</p>
+    <button class="btn" style="width:100%" onclick="openAIModal()">${t("⚙ AI 연결 설정")}</button>`);
+}
+
+/* ============ AI 관계 제안 ============ */
+let _aiSug=[];
+async function aiSuggestRelations(id){
+  const c=aiCfg(); if(!c.baseURL||!c.model){ openAIModal(); return; }
+  const it=findItem(id); if(!it) return; const r=it.ref;
+  openModal(`<h2>${curLang()==="en"?"AI Suggest Relations":"AI 관계 제안"} · ${esc(r.name||"")}</h2>
+    <div id="sugOut" class="wiki-view" style="max-height:340px;overflow:auto">${t("생성 중…")}</div>
+    <div class="mrow"><button class="btn primary" onclick="closeModal()">${t("닫기")}</button></div>`);
+  const existing=linksOf(id).map(l=>itemName(l.other));
+  const en=curLang()==="en";
+  const sys=en
+    ? "You are an assistant that helps with worldbuilding. Write all values in English and output only a JSON array with no commentary."
+    : "당신은 세계관 창작을 돕는 조수입니다. 모든 값을 한국어로 작성하고, 설명 없이 JSON 배열만 출력하세요.";
+  const list=aiWorldList(), geo=aiGeoContext();
+  const usr=en
+    ? `Suggest up to 6 relations that '${r.name}' (${t(CATS[it.cat].label)}) could newly form in the world below.
+Avoid duplicating existing relations (${existing.join(", ")||"none"}), and for the other party use only the 'exact names' from the list below (the part before '—' on each line).
+Also consider the position/distance relations in the geography summary. Write rel (the relation word) as a short English word.
+Output only a JSON array: [{"other":"other name","rel":"short relation","dir":"out|in"}]  (dir=out means ${r.name}→other, in means other→${r.name})
+
+[World items]
+${list}${geo?`\n\n[Geography]\n${geo}`:""}`
+    : `아래 세계관에서 '${r.name}'(${CATS[it.cat].label})가 새로 맺을 법한 관계를 최대 6개 제안하세요.
+이미 있는 관계(${existing.join(", ")||"없음"})와 중복되지 않게 하고, 상대는 아래 목록의 '정확한 이름'(각 줄 '—' 앞부분)만 사용하세요.
+지리 요약의 위치·거리 관계도 참고하세요. rel(관계어)은 한국어 짧은 단어로 쓰세요.
+JSON 배열만 출력: [{"other":"상대이름","rel":"짧은 관계어","dir":"out|in"}]  (dir=out 이면 ${r.name}→상대, in 이면 상대→${r.name})
+
+[세계 항목]
+${list}${geo?`\n\n[${"지리"}]\n${geo}`:""}`;
+  try{
+    const out=await aiChat([{role:"system",content:sys},{role:"user",content:usr}], aiTemp("relation"));   // 관계 제안 → 높은 온도(설정 가능)
+    const arr=parseJsonLoose(out), el=document.getElementById("sugOut"); if(!el) return;
+    if(!Array.isArray(arr)){ el.textContent=t("결과를 해석하지 못했습니다:")+"\n\n"+out; return; }
+    const nameId={}; allItems().forEach(i=>nameId[(i.name||"").toLowerCase()]=i.id);
+    _aiSug=[]; let html="";
+    arr.forEach(s=>{ const oid=nameId[(s.other||"").trim().toLowerCase()];
+      if(!oid||oid===id) return;
+      if(W.links.some(l=>(l.from===id&&l.to===oid)||(l.from===oid&&l.to===id))) return;
+      const dir=(s.dir==="in")?"in":"out", arrow=dir==="out"?"→":"←", idx=_aiSug.length;
+      _aiSug.push({id,oid,rel:(s.rel||"관계"),dir});
+      html+=`<div class="link-row"><span class="nm">${esc(r.name)} <span class="rel">${arrow} ${esc(s.rel||"관계")}</span> ${esc(itemName(oid))}</span>
+        <button class="btn" style="padding:3px 10px" onclick="applySuggestedRel(${idx},this)">${t("추가")}</button></div>`;
+    });
+    el.innerHTML = html || t("새로 제안할 관계가 없습니다.");
+  }catch(e){ const el=document.getElementById("sugOut"); if(el) el.textContent=(curLang()==="en"?"Failed: ":"실패: ")+e.message; }
+}
+function applySuggestedRel(idx,btn){ const s=_aiSug[idx]; if(!s) return;
+  W.links.push(s.dir==="out"?{from:s.id,to:s.oid,rel:s.rel}:{from:s.oid,to:s.id,rel:s.rel});
+  if(btn){ btn.disabled=true; btn.textContent=t("추가됨"); }
+  renderDetail(); renderPins(); if(view!=="map") renderView(); markDirty();
+}
+
+/* ============ AI 아이디어 제안 ============ */
+let _aiIdeas=[];
+function openIdeaModal(){
+  const cats=Object.entries(CATS).filter(([k])=>k!=="place");
+  openModal(`<h2>${t("새 항목 아이디어")}</h2>
+    <label class="fl">${t("분류")}</label>
+    <select class="f" id="ideaCat">${cats.map(([k,m])=>`<option value="${k}">${m.icon} ${t(m.label)}</option>`).join("")}</select>
+    <label class="fl">${t("방향 (선택)")}</label>
+    <input class="f" id="ideaHint" placeholder="${t("예: 주인공의 라이벌, 고대의 유물")}">
+    <div class="mrow"><button class="btn" onclick="closeModal()">${t("취소")}</button><button class="btn primary" onclick="genIdeas()">${t("생성")}</button></div>
+    <div id="ideaOut" style="margin-top:10px"></div>`);
+}
+async function genIdeas(){
+  const c=aiCfg(); if(!c.baseURL||!c.model){ openAIModal(); return; }
+  const cat=document.getElementById("ideaCat").value, hint=(document.getElementById("ideaHint").value||"").trim();
+  const out=document.getElementById("ideaOut"); out.textContent=t("생성 중…");
+  const en=curLang()==="en";
+  const sys=en
+    ? "You are an assistant that helps with worldbuilding. Write both the name and description in English, and output only a JSON array with no commentary."
+    : "당신은 세계관 창작을 돕는 조수입니다. 이름과 설명을 모두 한국어로 작성하고, 설명 없이 JSON 배열만 출력하세요.";
+  const list=aiWorldList(), geo=aiGeoContext();
+  const usr=en
+    ? `Suggest 5 new '${t(CATS[cat].label)}' items that fit the world below.${hint?" Direction: "+hint+".":""} Make them fit the existing items and geography without duplicating them.
+Write both name and desc in English.
+Output only a JSON array: [{"name":"name","desc":"1–2 sentence description"}]
+
+[World items]
+${list}${geo?`\n\n[Geography]\n${geo}`:""}`
+    : `아래 세계관에 어울리는 새 '${CATS[cat].label}' 5개를 제안하세요.${hint?" 방향: "+hint+".":""} 기존 항목·지리와 어울리되 중복되지 않게 하세요.
+이름(name)과 설명(desc)은 모두 한국어로 쓰세요.
+JSON 배열만 출력: [{"name":"이름","desc":"1~2문장 설명"}]
+
+[세계 항목]
+${list}${geo?`\n\n[${"지리"}]\n${geo}`:""}`;
+  try{
+    const res=await aiChat([{role:"system",content:sys},{role:"user",content:usr}], aiTemp("idea"));   // 아이디어 제안 → 높은 온도(설정 가능)
+    const arr=parseJsonLoose(res);
+    if(!Array.isArray(arr)){ out.textContent=t("결과를 해석하지 못했습니다:")+"\n\n"+res; return; }
+    _aiIdeas=arr.map(x=>({name:(x.name||"").trim(), desc:(x.desc||"").trim(), cat})).filter(x=>x.name);
+    let html=""; _aiIdeas.forEach((x,i)=>{ html+=`<div class="link-row" style="align-items:flex-start">
+      <span class="nm" style="white-space:normal"><b>${esc(x.name)}</b><br><span style="color:var(--muted);font-size:12px">${esc(x.desc)}</span></span>
+      <button class="btn" style="padding:3px 10px" onclick="addIdeaItem(${i},this)">${t("추가")}</button></div>`; });
+    out.innerHTML = html || t("제안이 없습니다.");
+  }catch(e){ out.textContent=(curLang()==="en"?"Failed: ":"실패: ")+e.message; }
+}
+function addIdeaItem(i,btn){ const x=_aiIdeas[i]; if(!x) return; const id=uid();
+  if(x.cat==="event") W.events.push({id,name:x.name,cat:"event",when:"",desc:x.desc,tags:[]});
+  else W.entities.push({id,name:x.name,cat:x.cat,desc:x.desc,tags:[]});
+  if(btn){ btn.disabled=true; btn.textContent=t("추가됨"); }
+  renderLeft(); if(view!=="map") renderView(); markDirty();
+}
+
+/* ============ 되돌리기 / 다시 실행 (지형·이미지 포함) ============
+   스냅샷은 컨테이너만 새로 만들고 문자열(지형·이미지 dataURL)은 참조를 공유한다.
+   → 바뀌지 않은 큰 blob은 여러 스냅샷이 같은 메모리를 가리켜 메모리 폭증이 없다. */
+let undoHist=[], histIndex=-1, restoringHist=false;
+function cloneShare(v){
+  if(Array.isArray(v)) return v.map(cloneShare);
+  if(v && typeof v==="object"){ const o={}; for(const k in v) o[k]=cloneShare(v[k]); return o; }
+  return v;   // 원시값(문자열 포함)은 참조 공유
+}
+/* 변경 감지용 가벼운 서명: 큰 문자열은 길이로 대체 */
+function sigOf(){ return JSON.stringify(W, (k,v)=> (k==="terrain"||k==="image") ? (v?("§"+v.length):null) : v); }
+function recordHistory(){
+  const sig=sigOf();
+  if(undoHist[histIndex] && undoHist[histIndex].sig===sig) return;
+  undoHist=undoHist.slice(0,histIndex+1);
+  undoHist.push({sig, snap:cloneShare(W)});
+  if(undoHist.length>80) undoHist.shift();
+  histIndex=undoHist.length-1;
+  updUndoButtons();
+}
+function updUndoButtons(){
+  const u=document.getElementById("undoBtn"), r=document.getElementById("redoBtn");
+  if(u) u.disabled = histIndex<=0;
+  if(r) r.disabled = histIndex>=undoHist.length-1;
+}
+function restoreHist(entry){
+  restoringHist=true;
+  W=cloneShare(entry.snap);   // 저장본이 이후 편집에 오염되지 않도록 다시 복제
+  if(!W.maps.find(m=>m.id===W.currentMap)) W.currentMap=W.maps[0].id;
+  sel=null; selSet.clear();
+  document.getElementById("worldTitle").value=W.meta.title||"";
+  applyMap(); loadTerrain(); renderMapBar(); renderAll();
+  updUndoButtons(); restoringHist=false;
+}
+function undo(){ if(histIndex>0){ histIndex--; restoreHist(undoHist[histIndex]); } }
+function redo(){ if(histIndex<undoHist.length-1){ histIndex++; restoreHist(undoHist[histIndex]); } }
+window.addEventListener("keydown",e=>{
+  const t=e.target, tag=t&&t.tagName;
+  const inField = tag==="INPUT"||tag==="TEXTAREA"||(t&&t.isContentEditable);
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="s"){ e.preventDefault(); saveWorld(e.shiftKey); return; }  // Ctrl+S 저장 / Ctrl+Shift+S 다른 이름으로
+  if(inField) return;   // 입력 필드에선 브라우저 기본 실행취소 사용
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="z"){
+    e.preventDefault(); if(e.shiftKey) redo(); else undo();
+  } else if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="y"){ e.preventDefault(); redo(); }
+});
+
+/* ============ 자동 저장 (localStorage) ============ */
+let saveTimer=null;
+function markDirty(){ clearTimeout(saveTimer); saveTimer=setTimeout(doAutoSave,900); markFileDirty(); }
+function doAutoSave(){
+  W.meta.title=document.getElementById("worldTitle").value;
+  saveTerrain();
+  if(!restoringHist) recordHistory();
+  try{
+    localStorage.setItem("we_autosave", JSON.stringify(W));
+    showSaved();
+  }catch(e){
+    // 용량 초과 등: 지형 이미지를 빼고 재시도
+    try{ const saved=W.maps.map(m=>{const t=m.terrain; m.terrain=null; return t;});
+      localStorage.setItem("we_autosave", JSON.stringify(W));
+      W.maps.forEach((m,i)=>m.terrain=saved[i]);
+      showSaved(t("저장됨(지형 제외)"));
+    }catch(e2){ showSaved(t("저장 실패 · 용량")); }
+  }
+}
+function showSaved(msg){
+  const el=document.getElementById("saveStatus"); if(!el) return;
+  if(msg){ el.textContent=msg; return; }
+  const d=new Date(), p=n=>String(n).padStart(2,"0");
+  el.textContent=(curLang()==="en"?"Saved ":"저장됨 ")+p(d.getHours())+":"+p(d.getMinutes());
+}
+function loadAutosave(){
+  try{
+    const raw=localStorage.getItem("we_autosave"); if(!raw) return false;
+    const d=JSON.parse(raw);
+    W={meta:d.meta||{title:t("이름 없는 세계")},maps:d.maps,map:d.map,currentMap:d.currentMap,places:d.places||[],
+       entities:d.entities||[],events:d.events||[],links:d.links||[],timelineManual:!!d.timelineManual,graphPos:d.graphPos||{}};
+    migrateMaps();
+    document.getElementById("worldTitle").value=W.meta.title||t("이름 없는 세계");
+    return true;
+  }catch(e){ return false; }
+}
+
+/* ============ 이미지 첨부 ============ */
+let keepPng=false;   // 체크 시 PNG(투명) 유지, 아니면 JPEG로 축소
+function pickItemImage(id){
+  const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*";
+  inp.onchange=()=>{ const f=inp.files[0]; if(!f) return;
+    resizeImage(f,1000).then(dataUrl=>{
+      const it=findItem(id); if(!it) return;
+      it.ref.image=dataUrl; renderDetail(); renderLeft(); renderPins(); markDirty();
+    });
+  };
+  inp.click();
+}
+function removeItemImage(id){
+  const it=findItem(id); if(!it) return;
+  delete it.ref.image; delete it.ref.imgFit; delete it.ref.imgH; delete it.ref.imgPos;
+  renderDetail(); renderLeft(); renderPins(); markDirty();
+}
+/* 업로드 이미지를 최대 변 maxDim 으로 축소해 dataURL 로 변환.
+   keepPng 이거나 원본이 PNG면 투명 유지(PNG), 아니면 용량 절약(JPEG) */
+function resizeImage(file,maxDim){
+  return new Promise(res=>{
+    const usePng = keepPng || file.type==="image/png";
+    const img=new Image();
+    img.onload=()=>{
+      let {width:w,height:h}=img;
+      if(Math.max(w,h)>maxDim){ const r=maxDim/Math.max(w,h); w=Math.round(w*r); h=Math.round(h*r); }
+      const cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+      cv.getContext("2d").drawImage(img,0,0,w,h);
+      res(usePng ? cv.toDataURL("image/png") : cv.toDataURL("image/jpeg",0.85));
+    };
+    const fr=new FileReader(); fr.onload=()=>img.src=fr.result; fr.readAsDataURL(file);
+  });
+}
+/* 이미지 표시 조절: 맞춤 방식 / 높이 / 초점(드래그) */
+function setImgFit(f){ const it=findItem(sel.id); if(!it)return; it.ref.imgFit=f; renderDetail(); markDirty(); }
+function setImgH(v){ const it=findItem(sel.id); if(!it)return; it.ref.imgH=+v;
+  const fr=document.getElementById("imgFrame"); if(fr) fr.style.height=v+"px"; markDirty(); }
+function parsePos(s){ const p=(s||"50% 50%").split(" "); return {x:parseFloat(p[0])||50, y:parseFloat(p[1])||50}; }
+function attachImgDrag(){
+  const img=document.getElementById("detImg"); if(!img) return;
+  const it=findItem(sel.id); if(!it || (it.ref.imgFit||"cover")!=="cover") return;
+  img.style.cursor="grab";
+  img.addEventListener("pointerdown",e=>{
+    e.preventDefault(); img.style.cursor="grabbing";
+    const st=parsePos(it.ref.imgPos), rect=img.getBoundingClientRect();
+    const sx=e.clientX, sy=e.clientY;
+    const mv=ev=>{
+      let px=st.x-(ev.clientX-sx)/rect.width*100;   // 드래그와 반대로 초점 이동(이미지를 미는 느낌)
+      let py=st.y-(ev.clientY-sy)/rect.height*100;
+      px=Math.max(0,Math.min(100,px)); py=Math.max(0,Math.min(100,py));
+      it.ref.imgPos=`${px.toFixed(1)}% ${py.toFixed(1)}%`;
+      img.style.objectPosition=it.ref.imgPos;
+    };
+    const up=()=>{ img.style.cursor="grab"; window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up); markDirty(); };
+    window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+  });
+}
+
+/* ============ 위키식 상호링크 [[이름]] ============ */
+function renderWiki(text){
+  if(!text) return "";
+  const re=/\[\[([^\]]+)\]\]/g; let out="", last=0, m;
+  while((m=re.exec(text))){
+    out+=esc(text.slice(last,m.index));
+    const name=m[1].trim();
+    const item=allItems().find(it=>(it.name||"").toLowerCase()===name.toLowerCase());
+    out+= item
+      ? `<a class="wlink" onclick="selectItem('${item.id}')">${esc(item.name)}</a>`
+      : `<span class="wlink miss" title="${t("일치하는 항목 없음")}">${esc(name)}</span>`;
+    last=m.index+m[0].length;
+  }
+  out+=esc(text.slice(last));
+  return out.replace(/\n/g,"<br>");
+}
+function stripWiki(t){ return (t||"").replace(/\[\[([^\]]+)\]\]/g,"$1"); }
+function updDesc(val){
+  const it=findItem(sel.id); if(!it) return;
+  it.ref.desc=val; renderLeft(); markDirty();
+}
+/* 설명: 평소엔 링크가 적용된 모습, 클릭하면 원문 편집, 편집을 마치면 다시 링크 적용 */
+function editDesc(){
+  const wv=document.getElementById("wikiView"), ed=document.getElementById("descEdit");
+  if(!ed||!wv) return;
+  wv.style.display="none"; ed.style.display="block"; ed.focus();
+  ed.selectionStart=ed.selectionEnd=ed.value.length;
+}
+function doneDesc(){
+  const wv=document.getElementById("wikiView"), ed=document.getElementById("descEdit");
+  if(!ed||!wv) return;
+  wv.innerHTML = ed.value ? renderWiki(ed.value) : `<span class="wiki-empty">${t("클릭하여 설명 입력…")}</span>`;
+  ed.style.display="none"; wv.style.display="block";
+}
+
+/* ============ 오른쪽 사이드바 너비 조절 ============
+   오른쪽 끝은 창에 고정, 왼쪽 가장자리를 드래그해 너비 변경 */
+(function(){
+  const rz=document.getElementById("rightResizer"), right=document.getElementById("right");
+  try{ const w=localStorage.getItem("we_right_w"); if(w) right.style.width=w+"px"; }catch(e){}
+  rz.addEventListener("pointerdown",e=>{
+    e.preventDefault(); rz.classList.add("drag");
+    const mv=ev=>{
+      let w=window.innerWidth-ev.clientX;      // 오른쪽 끝은 창 끝에 고정
+      w=Math.max(240,Math.min(700,w));
+      right.style.width=w+"px";
+    };
+    const up=()=>{
+      rz.classList.remove("drag");
+      window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up);
+      try{ localStorage.setItem("we_right_w", parseInt(right.style.width)); }catch(e){}
+    };
+    window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+  });
+})();
+
+/* 초기화 */
+cam={x:40,y:40,z:1}; applyCam();
+buildSwatches(); buildResizeHandles(); enableMapResize(); setTool("pan");
+const _restored=loadAutosave();     // 이전 작업이 있으면 복원
+applyStaticI18n();                   // 정적 HTML 언어 적용
+applyMap(); loadTerrain(); renderMapBar(); renderAll();
+if(_restored) fitView();
+updSaveState();                      // 현재 파일/저장 상태 표시
+applyMapHint();                      // 툴바 도움말 표시 설정 적용
+recordHistory(); updUndoButtons();   // 되돌리기 히스토리 시드
+</script>
+</body>
+</html>

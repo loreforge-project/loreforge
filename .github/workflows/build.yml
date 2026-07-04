@@ -1,0 +1,64 @@
+name: Build & Release (Windows)
+
+# main에 푸시될 때마다 "이 소스가 실제로 빌드되는지" 확인하고(아티팩트로 업로드),
+# v1.2.3 같은 버전 태그를 푸시하면 portable exe+체크섬을 GitHub Release로 자동 게시합니다.
+# (설치본(NSIS)은 만들지 않고 portable exe만 배포합니다.)
+# 사람이 자기 컴퓨터에서 손으로 빌드해 올리지 않도록 하기 위한 워크플로우입니다 —
+# 이 로그 자체가 "공개된 소스 = 배포된 실행파일"이라는 증거가 됩니다.
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*.*.*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # 태그 푸시 시 Release 생성/업로드에 필요
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: 소스 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Rust 툴체인 설치
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust 빌드 캐시
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "loreforge-app/src-tauri -> target"
+
+      - name: Tauri CLI 설치
+        run: cargo install tauri-cli --version "^2.0"
+
+      - name: 앱 빌드 (Loreforge.html 동기화 → portable exe)
+        working-directory: loreforge-app
+        run: cargo tauri build --no-bundle
+
+      - name: 배포용 폴더로 정리 + SHA-256 체크섬 생성
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist" | Out-Null
+          Copy-Item "loreforge-app\src-tauri\target\release\loreforge.exe" "dist\Loreforge-portable.exe"
+          Get-ChildItem "dist" -File | ForEach-Object {
+            $hash = Get-FileHash $_.FullName -Algorithm SHA256
+            "$($hash.Hash)  $($_.Name)" | Add-Content -Encoding utf8 "dist\SHA256SUMS.txt"
+          }
+          Get-Content "dist\SHA256SUMS.txt"
+
+      - name: 빌드 아티팩트 업로드 (매 빌드마다)
+        uses: actions/upload-artifact@v4
+        with:
+          name: loreforge-windows
+          path: dist/*
+
+      - name: GitHub Release 게시 (버전 태그 푸시일 때만)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.exe
+            dist/SHA256SUMS.txt
+          generate_release_notes: true

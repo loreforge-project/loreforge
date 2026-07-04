@@ -19,6 +19,10 @@ TestWorkspace/
 # loreforge-app 이전의 구버전 데스크톱 시도(현재는 loreforge-app 사용)
 WorldEngine-Desktop/
 
+# 아카라이브 홍보글 작성용 개인 참고자료·결과물(레포 공개 대상 아님)
+아카라이브_HTML_GUIDE_v6.4.md
+Loreforge_아카라이브_소개글.html
+
 # OS/에디터 잡파일
 .DS_Store
 Thumbs.db

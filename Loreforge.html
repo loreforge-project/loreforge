@@ -330,7 +330,7 @@
   <span id="fileInfo" title=""></span>
   <span id="saveStatus" title="자동 저장 상태" data-i18n-title="자동 저장 상태"></span>
   <div class="tb-actions">
-    <button class="btn" onclick="loadDemo()" data-i18n="예시 불러오기">예시 불러오기</button>
+    <button class="btn" id="demoBtn" onclick="loadDemo()" data-i18n="예시 불러오기">예시 불러오기</button>
     <button class="btn" onclick="openSettingsMenu()" data-i18n="설정">설정</button>
     <button class="btn" onclick="openAIMenu()">AI</button>
     <button class="btn" onclick="openConsistencyModal()" data-i18n="점검">점검</button>
@@ -2248,9 +2248,12 @@ document.getElementById("worldTitle").oninput=e=>{W.meta.title=e.target.value; m
 
 /* ============ 예시 데이터 ============ */
 function loadDemo(){
+  appConfirm(t("예시를 불러오면 현재 작업 내용이 모두 지워집니다. 계속하시겠습니까?"), _doLoadDemo);
+}
+function _doLoadDemo(){
   W={
     meta:{title:"아르카디아 연대기", scale:{perPx:0.4, unit:"km"}},
-    map:{bg:{type:"color",value:"#132033"},terrain:null,showGrid:true},
+    map:{bg:{type:"color",value:"#132033"},terrain:null,showGrid:true,mapW:2400,mapH:1700},
     graphPos:{},
     places:[
       // ── 지역(면) ──
@@ -2381,6 +2384,7 @@ function loadDemo(){
   migrateMaps();
   sel=null; document.getElementById("worldTitle").value=W.meta.title;
   applyMap(); loadTerrain(); renderMapBar(); renderAll(); fitView();
+  recordHistory(); updUndoButtons();   // 즉시 되돌리기 지점을 남겨서 바로 Ctrl+Z로 취소할 수 있게 함
 }
 
 /* ============ 공통 ============ */
@@ -2611,6 +2615,7 @@ var I18N_EN = {
   "항목당 설명 글자수 제한":"Char limit per item description",
   "비우면 최대":"Max if empty",
   "온도 기본값":"Reset temps", "← 뒤로":"← Back", "저장":"Save", "툴바 도움말":"Toolbar help",
+  "예시 불러오기 버튼":"Load Example Button",
   "설명 확장":"Expand", "관계 제안":"Relations", "아이디어 제안":"Ideas", "심층 점검":"Deep Check",
   /* ── AI 메뉴 ── */
   "💡 새 항목 아이디어 제안":"💡 Suggest New Item Ideas",
@@ -2682,6 +2687,7 @@ var I18N_EN = {
   "지도 이름":"Map name", "지도가 하나뿐이라 삭제할 수 없습니다.":"Can't delete the only map.",
   "이 항목을 삭제하시겠습니까? 연결된 관계도 함께 삭제됩니다.":"Delete this item? Its links will be removed too.",
   "새로 만들면 현재 작업 내용이 모두 지워집니다. 계속하시겠습니까?":"Creating a new world erases all current work. Continue?",
+  "예시를 불러오면 현재 작업 내용이 모두 지워집니다. 계속하시겠습니까?":"Loading the example erases all current work. Continue?",
   /* ── 배경 설정 모달 ── */
   "지도 배경 설정":"Map Background", "배경 이미지":"Background image", "이미지 파일 선택…":"Choose image file…",
   "바다·용암·양피지 같은 텍스처를 넣으면 지도 전체 배경이 됩니다. 그 위에 브러시로 육지·산을 그려 원하는 세계를 완성합니다.":"A texture like sea, lava, or parchment becomes the whole map background. Paint land and mountains on top with the brush to build your world.",
@@ -2734,6 +2740,17 @@ function toggleMapHint(){
   localStorage.setItem("we_settings", JSON.stringify(s));
   applyMapHint(); openSettingsMenu();   // 즉시 반영 + 토글 라벨 갱신
 }
+/* 상단바 '예시 불러오기' 버튼 표시/숨김(실수로 눌러 덮어쓰는 것 방지용) */
+function applyDemoBtnVisibility(){
+  const el=document.getElementById("demoBtn"); if(!el) return;
+  el.style.display = appSettings().hideDemoBtn ? "none" : "";
+}
+function toggleDemoBtn(){
+  const s=appSettings();
+  if(s.hideDemoBtn) delete s.hideDemoBtn; else s.hideDemoBtn=true;
+  localStorage.setItem("we_settings", JSON.stringify(s));
+  applyDemoBtnVisibility(); openSettingsMenu();
+}
 function saveDefZoom(v){
   const s=appSettings(), n=parseInt((v||"").trim(),10);
   if((v||"").trim()==="" || isNaN(n) || n<=0) delete s.defZoom; else s.defZoom=Math.max(20,Math.min(300,n));
@@ -2749,6 +2766,7 @@ function openSettingsMenu(){
     ${row(t("기본 배율"),
       `<input class="f" type="number" min="20" max="300" value="${dz}" placeholder="100" style="width:70px;margin:0;text-align:right" onchange="saveDefZoom(this.value)"><span style="color:var(--muted)">%</span>`)}
     ${row(t("툴바 도움말"), `<button class="btn${s.hideMapHint?"":" primary"}" style="padding:4px 14px" onclick="toggleMapHint()">${s.hideMapHint?(en?"Off":"꺼짐"):(en?"On":"켜짐")}</button>`)}
+    ${row(t("예시 불러오기 버튼"), `<button class="btn${s.hideDemoBtn?"":" primary"}" style="padding:4px 14px" onclick="toggleDemoBtn()">${s.hideDemoBtn?(en?"Hidden":"숨김"):(en?"Shown":"보임")}</button>`)}
     <button class="btn" style="width:100%;margin-top:2px" onclick="openContextSettings()">${t("AI 기능 맥락 조절")}</button>`);
 }
 function openContextSettings(){
@@ -3300,6 +3318,7 @@ applyMap(); loadTerrain(); renderMapBar(); renderAll();
 if(_restored) fitView();
 updSaveState();                      // 현재 파일/저장 상태 표시
 applyMapHint();                      // 툴바 도움말 표시 설정 적용
+applyDemoBtnVisibility();            // 예시 불러오기 버튼 표시 설정 적용
 recordHistory(); updUndoButtons();   // 되돌리기 히스토리 시드
 </script>
 </body>

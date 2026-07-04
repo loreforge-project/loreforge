@@ -64,9 +64,9 @@ cargo tauri --version
 
 ## 2. 빌드하기
 
-PowerShell에서 이 폴더로 이동:
+PowerShell에서 이 저장소를 clone/다운로드한 위치의 `loreforge-app` 폴더로 이동:
 ```powershell
-cd "D:\WorkSpace\world engine\loreforge-app"
+cd loreforge-app
 ```
 
 ### 2-1. 설치본 빌드

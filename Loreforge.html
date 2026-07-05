@@ -93,6 +93,8 @@
     font-size:12px; padding:1px 4px; border-radius:4px; line-height:1;}
   .folderrow .fbtn:hover{background:var(--line); color:#fff;}
   .folderrow.dropinto{outline:2px dashed var(--accent); outline-offset:-2px; background:var(--panel);}
+  .folderrow.dropbefore{box-shadow:inset 0 2px 0 0 var(--accent);}
+  .folderrow.dropafter{box-shadow:inset 0 -2px 0 0 var(--accent);}
   .dot{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
   .item .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .empty{color:var(--muted); font-size:12px; padding:4px 9px; font-style:italic;}
@@ -724,6 +726,7 @@ function expandAncestors(id){ let cur=treeParentId(id),g=0; while(cur&&g++<60){ 
    - 드롭할 때 같은 '그룹'(같은 폴더의 루트끼리, 또는 같은 부모의 자식끼리) 안에서 sidx를 0..n으로 다시 매겨 안정적으로 유지한다. */
 let collapsedFolders=new Set();   // 접힌 폴더 id
 let _dragId=null;                 // 드래그 중인 항목 id
+let _dragFolderId=null;           // 드래그 중인 폴더 id (폴더끼리 순서 변경용)
 
 function isRootId(id){ return !treeParentId(id); }
 /* 특정 분류에서 (폴더 fol에 속한) 루트 항목 ref 목록. fol=null 이면 폴더에 안 든 루트 */
@@ -736,9 +739,16 @@ function childGroupRefs(cat, parentId){
 }
 function nextSidx(cat){ return catRefs(cat).reduce((m,x)=> typeof x.sidx==="number"?Math.max(m,x.sidx+1):m, 0); }
 
-/* 그룹(ref 배열) 안에서 ref를 targetId 앞/뒤로 재배치하고 sidx를 0..n으로 다시 부여 */
+/* 그룹을 '현재 표시 순서'(sidx 우선, 없으면 기존 배열 순서)대로 정렬해 돌려준다.
+   드롭 시 반드시 이 순서를 기준으로 sidx를 다시 매겨야, 이전에 수동으로 바꿔둔 순서가 보존된다.
+   (예전엔 원본 배열 순서로 매겨서 '마지막 한 번'의 이동만 남고 나머지가 생성순으로 되돌아가는 버그가 있었음) */
+function bySidx(group){
+  const sv=x=> typeof x.sidx==="number"?x.sidx:1e9;
+  return group.map((x,n)=>[x,n]).sort((a,b)=>(sv(a[0])-sv(b[0]))||(a[1]-b[1])).map(p=>p[0]);
+}
+/* 그룹 안에서 ref를 targetId 앞/뒤로 재배치하고 sidx를 0..n으로 다시 부여 */
 function reinsertRef(group, ref, targetId, before){
-  const arr=group.filter(x=>x.id!==ref.id);
+  const arr=bySidx(group).filter(x=>x.id!==ref.id);
   let i=arr.findIndex(x=>x.id===targetId);
   if(i<0) i=arr.length; else if(!before) i+=1;
   arr.splice(i,0,ref);
@@ -767,7 +777,7 @@ function dropInFolder(folderId){
   const f=W.folders.find(x=>x.id===folderId);
   if(!f || f.cat!==d.cat || !isRootId(_dragId)) return;
   d.ref.folder=folderId;
-  const arr=rootGroupRefs(d.cat, folderId).filter(x=>x.id!==d.ref.id);
+  const arr=bySidx(rootGroupRefs(d.cat, folderId)).filter(x=>x.id!==d.ref.id);
   arr.push(d.ref); arr.forEach((x,n)=>{ x.sidx=n; });
   markDirty(); renderLeft();
 }
@@ -776,13 +786,26 @@ function dropLoose(cat){
   const d=findItem(_dragId); if(!d || d.cat!==cat || !isRootId(_dragId)) return;
   if(!(d.ref.folder)) { /* 이미 폴더 밖 */ }
   delete d.ref.folder;
-  const arr=rootGroupRefs(cat, null).filter(x=>x.id!==d.ref.id);
+  const arr=bySidx(rootGroupRefs(cat, null)).filter(x=>x.id!==d.ref.id);
   arr.push(d.ref); arr.forEach((x,n)=>{ x.sidx=n; });
+  markDirty(); renderLeft();
+}
+/* 폴더끼리 순서 변경: 대상 폴더 앞/뒤로 재배치하고 forder를 0..n으로 다시 부여 */
+function applyFolderDrop(targetFolderId, before){
+  if(!_dragFolderId || _dragFolderId===targetFolderId) return;
+  const drag=W.folders.find(f=>f.id===_dragFolderId), tgt=W.folders.find(f=>f.id===targetFolderId);
+  if(!drag || !tgt || drag.cat!==tgt.cat) return;   // 같은 분류 안에서만
+  const group=W.folders.filter(f=>f.cat===drag.cat).sort((a,b)=>((a.forder??0)-(b.forder??0)));
+  const arr=group.filter(f=>f.id!==drag.id);
+  let i=arr.findIndex(f=>f.id===targetFolderId);
+  if(i<0) i=arr.length; else if(!before) i+=1;
+  arr.splice(i,0,drag);
+  arr.forEach((f,n)=>{ f.forder=n; });
   markDirty(); renderLeft();
 }
 function clearDropCues(){
   document.querySelectorAll(".item.dropbefore,.item.dropafter").forEach(el=>el.classList.remove("dropbefore","dropafter"));
-  document.querySelectorAll(".folderrow.dropinto").forEach(el=>el.classList.remove("dropinto"));
+  document.querySelectorAll(".folderrow.dropinto,.folderrow.dropbefore,.folderrow.dropafter").forEach(el=>el.classList.remove("dropinto","dropbefore","dropafter"));
 }
 
 /* 폴더 CRUD */
@@ -824,9 +847,19 @@ function appendFolderRow(g, f, count){
       <button class="fbtn" title="${t("폴더 이름 변경")}" onclick="event.stopPropagation();renameFolder('${f.id}')">✎</button>
       <button class="fbtn" title="${t("폴더 삭제")}" onclick="event.stopPropagation();delFolder('${f.id}')">🗑</button>
     </span>`;
-  row.addEventListener("dragover",ev=>{ if(!_dragId) return; ev.preventDefault(); ev.stopPropagation(); clearDropCues(); row.classList.add("dropinto"); });
-  row.addEventListener("dragleave",()=>row.classList.remove("dropinto"));
-  row.addEventListener("drop",ev=>{ if(!_dragId) return; ev.preventDefault(); ev.stopPropagation(); dropInFolder(f.id); clearDropCues(); _dragId=null; });
+  row.draggable=true;
+  row.addEventListener("dragstart",ev=>{ _dragFolderId=f.id; _dragId=null; ev.dataTransfer.effectAllowed="move"; try{ev.dataTransfer.setData("text/plain",f.id);}catch(e){} ev.stopPropagation(); row.classList.add("dragging"); });
+  row.addEventListener("dragend",()=>{ row.classList.remove("dragging"); clearDropCues(); _dragFolderId=null; });
+  row.addEventListener("dragover",ev=>{ ev.preventDefault(); ev.stopPropagation(); clearDropCues();
+    if(_dragFolderId && _dragFolderId!==f.id){ const r=row.getBoundingClientRect(); row.classList.add(((ev.clientY-r.top)<r.height/2)?"dropbefore":"dropafter"); }   // 폴더끼리: 앞/뒤 재정렬
+    else if(_dragId){ row.classList.add("dropinto"); }   // 항목: 이 폴더로 흡수
+  });
+  row.addEventListener("dragleave",()=>row.classList.remove("dropinto","dropbefore","dropafter"));
+  row.addEventListener("drop",ev=>{ ev.preventDefault(); ev.stopPropagation();
+    if(_dragFolderId){ const r=row.getBoundingClientRect(); applyFolderDrop(f.id, (ev.clientY-r.top)<r.height/2); _dragFolderId=null; }
+    else if(_dragId){ dropInFolder(f.id); _dragId=null; }
+    clearDropCues();
+  });
   g.appendChild(row);
 }
 
@@ -896,7 +929,7 @@ function appendItemRow(g,i,depth,hasKids,expanded){
   el.onclick=()=>selectItem(i.id);
   // 드래그로 순서 변경 / 폴더 이동 (검색 중이 아닐 때만 의미 있음 — 검색은 평면이라 드롭해도 그룹이 같음)
   el.draggable=true; el.dataset.id=i.id;
-  el.addEventListener("dragstart",ev=>{ _dragId=i.id; ev.dataTransfer.effectAllowed="move"; try{ev.dataTransfer.setData("text/plain",i.id);}catch(e){} el.classList.add("dragging"); });
+  el.addEventListener("dragstart",ev=>{ _dragId=i.id; _dragFolderId=null; ev.dataTransfer.effectAllowed="move"; try{ev.dataTransfer.setData("text/plain",i.id);}catch(e){} el.classList.add("dragging"); });
   el.addEventListener("dragend",()=>{ el.classList.remove("dragging"); clearDropCues(); _dragId=null; });
   el.addEventListener("dragover",ev=>{ if(!_dragId||_dragId===i.id) return; ev.preventDefault(); ev.stopPropagation();
     clearDropCues(); const r=el.getBoundingClientRect(); el.classList.add(((ev.clientY-r.top)<r.height/2)?"dropbefore":"dropafter"); });

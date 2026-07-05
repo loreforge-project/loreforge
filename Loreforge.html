@@ -334,7 +334,7 @@
 <body>
 
 <div id="topbar">
-  <h1>Lore<span>forge</span> <em id="verTag">v1.1.0</em></h1>
+  <h1>Lore<span>forge</span> <em id="verTag">v1.2.0</em></h1>
   <input id="worldTitle" value="이름 없는 세계" title="세계관 제목" data-i18n-title="세계관 제목">
   <div class="tabs">
     <button class="tab active" data-view="map" data-i18n="지도">지도</button>
@@ -501,13 +501,13 @@ function treeParent(i){
   return null;
 }
 function childrenOf(id){ return allItems().filter(i=>treeParent(i)===id); }
-/* 백링크: 이 항목의 이름을 설명에서 {{이름}}으로 언급한 다른 항목들 */
+/* 백링크: 이 항목의 이름을 설명에서 [[이름]]으로 언급한 다른 항목들 */
 function backlinksOf(id){
   const it=findItem(id); if(!it) return [];
   const name=(it.ref.name||"").trim().toLowerCase(); if(!name) return [];
   return allItems().filter(o=>{
     if(o.id===id) return false;
-    const d=(findItem(o.id).ref.desc||""); let m; const re=/\{\{([^}]+)\}\}/g;
+    const d=(findItem(o.id).ref.desc||""); let m; const re=/\[\[([^\]]+)\]\]/g;
     while((m=re.exec(d))){ if(m[1].trim().toLowerCase()===name) return true; }
     return false;
   });
@@ -1305,7 +1305,7 @@ function renderDetail(){
   html+=`<label class="fl">${t("설명")}</label>
     <div class="wiki-view" id="wikiView" onclick="editDesc()">${r.desc?renderWiki(r.desc):`<span class="wiki-empty">${t("클릭하여 설명 입력…")}</span>`}</div>
     <textarea class="f" id="descEdit" style="display:none" placeholder="${t("설정 내용을 입력하세요.")}" oninput="updDesc(this.value)" onblur="doneDesc()">${esc(r.desc||"")}</textarea>
-    <div class="fhint">${t("{{이름}} 형식으로 입력하면 해당 항목으로 자동 연결됩니다.")}</div>
+    <div class="fhint">${t("[[이름]] 형식으로 입력하면 해당 항목으로 자동 연결됩니다.")}</div>
     <label class="fl">${t("태그 (쉼표로 구분)")}</label>
     <input class="f" value="${esc((r.tags||[]).join(", "))}" oninput="updTags(this.value)">
     <div>${(r.tags||[]).map(tg=>`<span class="tag">#${esc(tg)}</span>`).join("")}</div>`;
@@ -1336,7 +1336,7 @@ function renderDetail(){
     html+=`</div>`;
   }
 
-  // 백링크: 이 항목을 설명에서 {{이름}}으로 언급한 곳
+  // 백링크: 이 항목을 설명에서 [[이름]]으로 언급한 곳
   const backs=backlinksOf(sel.id);
   if(backs.length){
     html+=`<div class="sect"><h3>${en?`Mentioned in (${backs.length})`:`언급된 곳 (${backs.length})`}</h3>`;
@@ -2269,6 +2269,7 @@ async function saveWorld(saveAs){
       }
       _dirtyFile=false; updSaveState();
       showSaved(curLang()==="en"?"Saved to file":"파일에 저장됨");
+      syncMdMirror({silent:true});   // md 미러 폴더가 지정돼 있으면 저장 때마다 자동 갱신
     }catch(e){ appAlert((curLang()==="en"?"Save failed: ":"저장 실패: ")+e); }
   } else {
     const blob=new Blob([json],{type:"application/json"});
@@ -2304,7 +2305,7 @@ function exportJSON(){ saveWorld(false); }   // 툴바 '저장' 버튼
 /* ============ 세계관 설정집 내보내기 (자립형 HTML) ============ */
 function wikiToDoc(text){
   if(!text) return "";
-  const re=/\{\{([^}]+)\}\}/g; let out="",last=0,m;
+  const re=/\[\[([^\]]+)\]\]/g; let out="",last=0,m;
   while((m=re.exec(text))){ out+=esc(text.slice(last,m.index));
     const n=m[1].trim(); const it=allItems().find(x=>(x.name||"").toLowerCase()===n.toLowerCase());
     out+= it?`<a href="#i${it.id}">${esc(it.name)}</a>`:esc(n); last=m.index+m[0].length; }
@@ -2374,6 +2375,93 @@ a{color:#3a63c0;text-decoration:none;} a:hover{text-decoration:underline;}
     a.download=name; a.click();
   }
 }
+/* ============ Markdown 미러 내보내기 (Obsidian 등 외부 도구·LLM용, 읽기 전용 일방향 사본) ============
+   앱 정본은 여전히 .json. 파일 저장(saveWorld) 성공 시 지정 폴더에 세계 전체를 사람이 읽을 수 있는
+   .md 트리로 미러링한다. 항목별 .md(frontmatter+본문+관계/위치/백링크) + _index.md + assets(이미지).
+   위키 링크 [[이름]] 문법이 Obsidian과 그대로 호환된다. 편집은 앱에서만(미러를 고쳐도 앱은 안 읽음). */
+const MD_CAT_DIR={place:"places",person:"entities",faction:"entities",event:"events",item:"entities",concept:"entities"};
+function mdSlugBase(name){ let s=(name||"").trim().replace(/[\\\/:*?"<>|#^\[\]]/g,"").replace(/\s+/g," ").trim(); return s||"untitled"; }
+/* 항목별 파일명(슬러그). 같은 이름이 여러 개면 파일 충돌을 막으려고 id 꼬리표를 붙인다(전역 기준). */
+function mdSlugMap(){
+  const items=allItems(), map={}, cnt={};
+  items.forEach(i=>{ const b=mdSlugBase(i.name).toLowerCase(); cnt[b]=(cnt[b]||0)+1; });
+  items.forEach(i=>{ const b=mdSlugBase(i.name); map[i.id]=cnt[b.toLowerCase()]>1?`${b}-${i.id}`:b; });
+  return map;
+}
+function mdYaml(s){ return '"'+String(s==null?"":s).replace(/\\/g,"\\\\").replace(/"/g,'\\"')+'"'; }
+function mdDataExt(dataUrl){ const m=/^data:image\/([a-zA-Z0-9]+)/.exec(dataUrl||""); return m?m[1].toLowerCase().replace("jpeg","jpg"):"png"; }
+/* place의 소속 지역·방위를 자연어로 (aiGeoContext/aiContextOf와 동일 로직 재사용) */
+function mdLocationLine(i){
+  if(i.cat!=="place") return "";
+  const r=findItem(i.id).ref;
+  if(r.shape==="line"||r.shape==="label") return "";
+  const A=areaOf(r); if(!A) return "";
+  return `[[${A.name}]] · 그 지역의 ${_quad(A,placeAnchor(r))}`;
+}
+function mdItemFile(i){
+  const it=findItem(i.id); if(!it) return ""; const r=it.ref, cat=it.cat;
+  const L=["---","id: "+i.id,"분류: "+mdYaml(CATS[cat].label),"type: "+cat];
+  const par=treeParentId(i.id); if(par) L.push('상위: "[['+itemName(par)+']]"');
+  if(cat==="event" && r.when) L.push("시점: "+mdYaml(r.when));
+  if((r.tags||[]).length) L.push("태그: ["+r.tags.map(mdYaml).join(", ")+"]");
+  L.push("---","","# "+(r.name||"(이름없음)"),"");
+  if(r.image && /^data:image\//.test(r.image)) L.push(`![${(r.name||"").replace(/[\[\]]/g,"")}](<../assets/${i.id}-portrait.${mdDataExt(r.image)}>)`,"");
+  if((r.desc||"").trim()) L.push(r.desc.trim(),"");
+  const loc=mdLocationLine(i); if(loc) L.push("## 위치","",loc,"");
+  const rels=linksOf(i.id);
+  if(rels.length){ L.push("## 관계",""); rels.forEach(l=>L.push(`- ${l.label} ${l.out?"→":"←"} [[${itemName(l.other)}]]`)); L.push(""); }
+  const kids=childrenOf(i.id);
+  if(kids.length){ L.push("## 하위",""); kids.forEach(k=>L.push(`- [[${k.name}]]`)); L.push(""); }
+  const backs=backlinksOf(i.id);
+  if(backs.length){ L.push("## 백링크",""); backs.forEach(b=>L.push(`- [[${b.name}]]`)); L.push(""); }
+  return L.join("\n");
+}
+function mdIndexFile(){
+  const title=W.meta.title||"세계관", items=allItems(), L=["# "+title,""];
+  L.push("> Loreforge 세계관 미러 · 앱에서 저장할 때마다 자동 갱신됩니다. 읽기 전용 사본이며, 편집은 앱에서 하세요.","");
+  if((W.maps||[]).length){ L.push("## 지도",""); W.maps.forEach(m=>L.push(`- ${mapDepthMark(m)}${m.name}`)); L.push(""); }
+  ["place","person","faction","event","item","concept"].forEach(cat=>{
+    let list=items.filter(i=>i.cat===cat); if(!list.length) return;
+    if(cat==="event") list=W.timelineManual?[...list].sort((a,b)=>(a.order??1e9)-(b.order??1e9)):autoSortEvents(list);
+    L.push(`## ${CATS[cat].label} (${list.length})`,"");
+    list.forEach(i=>L.push(`- [[${i.name}]]`)); L.push("");
+  });
+  return L.join("\n");
+}
+/* 미러 파일 목록 생성: [{path, text} | {path, base64}] */
+function buildMdMirror(){
+  const tEl=document.getElementById("worldTitle"); if(tEl) W.meta.title=tEl.value;
+  const items=allItems(), slugs=mdSlugMap(), files=[];
+  items.forEach(i=>files.push({path:`${MD_CAT_DIR[i.cat]||"entities"}/${slugs[i.id]}.md`, text:mdItemFile(i)}));
+  items.forEach(i=>{ const r=findItem(i.id).ref;
+    if(r.image && /^data:image\//.test(r.image)) files.push({path:`assets/${i.id}-portrait.${mdDataExt(r.image)}`, base64:(r.image.split(",")[1]||"")}); });
+  (W.maps||[]).forEach(m=>{ if(m.bg && m.bg.type==="image" && /^data:image\//.test(m.bg.value||""))
+    files.push({path:`assets/map-${m.id}-bg.${mdDataExt(m.bg.value)}`, base64:(m.bg.value.split(",")[1]||"")}); });
+  files.push({path:"_index.md", text:mdIndexFile()});
+  files.push({path:".loreforge-mirror", text:"Loreforge md mirror. This folder is managed by the app and overwritten on each save.\n"});
+  return files;
+}
+function mdMirrorDir(){ try{ return localStorage.getItem("we_mdmirror_dir")||""; }catch(e){ return ""; } }
+/* 저장 시 자동 호출. dir 미지정이면 조용히 패스. 실패하면 알림. */
+async function syncMdMirror(opts){
+  opts=opts||{}; if(!inTauriApp()) return false;
+  const dir=mdMirrorDir(); if(!dir) return false;
+  try{
+    await tinvoke("write_md_mirror",{ dir, files:buildMdMirror() });
+    if(!opts.silent) showSaved(curLang()==="en"?"md mirror updated":"md 미러 갱신됨");
+    return true;
+  }catch(e){ appAlert((curLang()==="en"?"md mirror failed: ":"md 미러 실패: ")+e); return false; }
+}
+async function pickMdMirrorDir(){
+  if(!inTauriApp()){ appAlert(curLang()==="en"?"Available in the desktop app only.":"데스크톱 앱에서만 사용할 수 있어요."); return; }
+  try{
+    const p=await tinvoke("pick_folder_dialog"); if(!p) return;
+    try{ localStorage.setItem("we_mdmirror_dir",p); }catch(e){}
+    await syncMdMirror();          // 지정 즉시 1회 미러
+    openSettingsMenu();            // 메뉴 갱신(현재 폴더 표시)
+  }catch(e){ appAlert((curLang()==="en"?"Failed: ":"실패: ")+e); }
+}
+function clearMdMirrorDir(){ try{ localStorage.removeItem("we_mdmirror_dir"); }catch(e){} openSettingsMenu(); }
 /* ============ 지도 이미지(PNG) 내보내기 ============ */
 function hexA(hex,a){ const n=parseInt((hex||"#7aa2f7").slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
 function drawCover(c,img,dx,dy,dw,dh){ const ir=img.width/img.height, dr=dw/dh; let sw,sh,sx,sy;
@@ -2461,28 +2549,28 @@ function _doLoadDemo(){
       {id:"p_emp",name:"빛의 제국 강역",shape:"area",color:"#bb9af7",x:0,y:0,
         points:[{x:900,y:520},{x:1520,y:500},{x:1660,y:980},{x:1160,y:1120},{x:840,y:880}],
         holes:[[{x:1340,y:650},{x:1450,y:660},{x:1450,y:750},{x:1340,y:740}]],
-        desc:"{{세라핀 여제}}가 다스리는 대륙 중앙의 신정 국가 영토. {{은결 강}}이 가로지른다.",tags:["영토","제국"]},
+        desc:"[[세라핀 여제]]가 다스리는 대륙 중앙의 신정 국가 영토. [[은결 강]]이 가로지른다.",tags:["영토","제국"]},
       {id:"p_north",name:"북부 서리 지대",shape:"area",color:"#7dcfff",x:0,y:0,
         points:[{x:560,y:120},{x:1240,y:150},{x:1180,y:470},{x:600,y:450}],
-        desc:"{{북부 부족 연맹}}이 할거하는 얼어붙은 땅.",tags:["북부","혹한"]},
+        desc:"[[북부 부족 연맹]]이 할거하는 얼어붙은 땅.",tags:["북부","혹한"]},
       {id:"p_swamp",name:"검은 늪 지대",shape:"area",color:"#41506b",x:0,y:0,
         points:[{x:1560,y:1000},{x:2060,y:1020},{x:2090,y:1410},{x:1560,y:1420}],
-        desc:"{{그림자 교단}}이 숨어드는 저주받은 습지.",tags:["늪","위험"]},
+        desc:"[[그림자 교단]]이 숨어드는 저주받은 습지.",tags:["늪","위험"]},
       // ── 점(장소) ──
-      {id:"p_lumen",name:"성도 루멘",x:1180,y:760,parent:"p_emp",icon:"👑",desc:"{{빛의 제국}}의 수도이자 {{빛의 신앙}}의 총본산. {{세라핀 여제}}가 머문다.",tags:["수도","종교"]},
-      {id:"p_wind",name:"바람 마을",x:980,y:940,parent:"p_emp",desc:"{{카이든}}이 태어난 변경의 작은 마을.",tags:["고향"]},
-      {id:"p_port",name:"여명 항구",x:1480,y:720,parent:"p_emp",icon:"⚓",desc:"{{동부 대해}}로 나가는 교역항. {{상인 연합}}의 거점.",tags:["항구","교역"]},
-      {id:"p_kern",name:"무역 도시 케른",x:1280,y:900,parent:"p_emp",icon:"🏙️",desc:"{{상인 연합}}의 본거지.",tags:["교역"]},
+      {id:"p_lumen",name:"성도 루멘",x:1180,y:760,parent:"p_emp",icon:"👑",desc:"[[빛의 제국]]의 수도이자 [[빛의 신앙]]의 총본산. [[세라핀 여제]]가 머문다.",tags:["수도","종교"]},
+      {id:"p_wind",name:"바람 마을",x:980,y:940,parent:"p_emp",desc:"[[카이든]]이 태어난 변경의 작은 마을.",tags:["고향"]},
+      {id:"p_port",name:"여명 항구",x:1480,y:720,parent:"p_emp",icon:"⚓",desc:"[[동부 대해]]로 나가는 교역항. [[상인 연합]]의 거점.",tags:["항구","교역"]},
+      {id:"p_kern",name:"무역 도시 케른",x:1280,y:900,parent:"p_emp",icon:"🏙️",desc:"[[상인 연합]]의 본거지.",tags:["교역"]},
       {id:"p_fort",name:"국경 요새",x:960,y:640,parent:"p_emp",icon:"🏰",desc:"북부와 맞닿은 제국의 방벽.",tags:["국경","전쟁"]},
-      {id:"p_castle",name:"서리성",x:860,y:300,parent:"p_north",icon:"🏰",desc:"{{갈드}}가 웅거하는 얼음 성채.",tags:["요새"]},
-      {id:"p_cave",name:"얼음 동굴",x:680,y:230,parent:"p_north",icon:"❄️",desc:"{{서리 왕관}}이 잠든 동굴.",tags:["던전"]},
+      {id:"p_castle",name:"서리성",x:860,y:300,parent:"p_north",icon:"🏰",desc:"[[갈드]]가 웅거하는 얼음 성채.",tags:["요새"]},
+      {id:"p_cave",name:"얼음 동굴",x:680,y:230,parent:"p_north",icon:"❄️",desc:"[[서리 왕관]]이 잠든 동굴.",tags:["던전"]},
       {id:"p_gate",name:"서리 관문",x:1080,y:420,parent:"p_north",desc:"북부와 제국을 잇는 협곡 관문. 여러 전투의 무대.",tags:["국경","전쟁"]},
       {id:"p_swtown",name:"늪지 마을",x:1700,y:1150,parent:"p_swamp",desc:"늪 가장자리의 은둔 마을.",tags:["마을"]},
-      {id:"p_altar",name:"검은 제단",x:1950,y:1260,parent:"p_swamp",icon:"☠️",desc:"{{여명의 검}}이 봉인되었던 고대의 제단. {{그림자의 각성}}이 일어난 곳.",tags:["던전","마법"]},
+      {id:"p_altar",name:"검은 제단",x:1950,y:1260,parent:"p_swamp",icon:"☠️",desc:"[[여명의 검]]이 봉인되었던 고대의 제단. [[그림자의 각성]]이 일어난 곳.",tags:["던전","마법"]},
       // ── 선/경로 ──
       {id:"ln_road",name:"왕도로",shape:"line",curve:true,color:"#e0af68",width:4,x:0,y:0,
         points:[{x:1180,y:760},{x:1140,y:640},{x:1100,y:520},{x:1080,y:420}],
-        desc:"{{성도 루멘}}과 {{서리 관문}}을 잇는 제국 가도.",tags:["도로"]},
+        desc:"[[성도 루멘]]과 [[서리 관문]]을 잇는 제국 가도.",tags:["도로"]},
       {id:"ln_river",name:"은결 강",shape:"line",curve:true,color:"#7dcfff",width:5,x:0,y:0,
         points:[{x:640,y:160},{x:900,y:420},{x:1200,y:720},{x:1520,y:980},{x:1760,y:1120}],
         desc:"북부에서 검은 늪까지 대륙을 가르며 흐르는 큰 강.",tags:["강"]},
@@ -2492,13 +2580,13 @@ function _doLoadDemo(){
     ],
     entities:[
       // 인물
-      {id:"e_kaiden",name:"카이든",cat:"person",desc:"{{바람 마을}} 출신의 젊은 검사. {{여명의 검}}을 찾아 여정을 떠난다.",tags:["주인공"]},
-      {id:"e_sera",name:"세라핀 여제",cat:"person",desc:"{{빛의 제국}}을 다스리는 여제. {{빛의 신앙}}의 수호자.",tags:["통치자","궁정"]},
-      {id:"e_riana",name:"리아나",cat:"person",desc:"{{카이든}}과 동행하는 궁수. {{상인 연합}}과 연이 있다.",tags:["동료"]},
-      {id:"e_orin",name:"현자 오린",cat:"person",desc:"{{룬 마법}}을 연구하는 늙은 현자. {{카이든}}의 스승.",tags:["현자","스승"]},
-      {id:"e_gald",name:"갈드",cat:"person",desc:"{{북부 부족 연맹}}의 총사령. {{세라핀 여제}}를 증오한다.",tags:["적","북부"]},
-      {id:"e_morg",name:"모르가나",cat:"person",desc:"{{그림자 교단}}의 교주. {{그림자 성배}}를 노리는 흑막.",tags:["흑막"]},
-      {id:"e_kyle",name:"기사단장 카일",cat:"person",desc:"{{세라핀 여제}}를 호위하는 {{서리 기사단}}의 단장.",tags:["궁정","기사"]},
+      {id:"e_kaiden",name:"카이든",cat:"person",desc:"[[바람 마을]] 출신의 젊은 검사. [[여명의 검]]을 찾아 여정을 떠난다.",tags:["주인공"]},
+      {id:"e_sera",name:"세라핀 여제",cat:"person",desc:"[[빛의 제국]]을 다스리는 여제. [[빛의 신앙]]의 수호자.",tags:["통치자","궁정"]},
+      {id:"e_riana",name:"리아나",cat:"person",desc:"[[카이든]]과 동행하는 궁수. [[상인 연합]]과 연이 있다.",tags:["동료"]},
+      {id:"e_orin",name:"현자 오린",cat:"person",desc:"[[룬 마법]]을 연구하는 늙은 현자. [[카이든]]의 스승.",tags:["현자","스승"]},
+      {id:"e_gald",name:"갈드",cat:"person",desc:"[[북부 부족 연맹]]의 총사령. [[세라핀 여제]]를 증오한다.",tags:["적","북부"]},
+      {id:"e_morg",name:"모르가나",cat:"person",desc:"[[그림자 교단]]의 교주. [[그림자 성배]]를 노리는 흑막.",tags:["흑막"]},
+      {id:"e_kyle",name:"기사단장 카일",cat:"person",desc:"[[세라핀 여제]]를 호위하는 [[서리 기사단]]의 단장.",tags:["궁정","기사"]},
       // 세력
       {id:"f_emp",name:"빛의 제국",cat:"faction",desc:"대륙 중앙을 지배하는 신정 국가.",tags:["국가"]},
       {id:"f_frost",name:"서리 기사단",cat:"faction",parent:"f_emp",desc:"제국의 정예 기사단.",tags:["군대"]},
@@ -2506,9 +2594,9 @@ function _doLoadDemo(){
       {id:"f_merch",name:"상인 연합",cat:"faction",desc:"교역로를 쥔 상인 길드.",tags:["상업"]},
       {id:"f_north",name:"북부 부족 연맹",cat:"faction",desc:"서리 지대의 부족 동맹.",tags:["부족"]},
       // 아이템
-      {id:"i_sword",name:"여명의 검",cat:"item",desc:"{{검은 제단}}에 봉인된 전설의 성검.",tags:["성검"]},
-      {id:"i_crown",name:"서리 왕관",cat:"item",desc:"{{빙결의 룬}}이 깃든 북부의 보물.",tags:["보물"]},
-      {id:"i_grail",name:"그림자 성배",cat:"item",desc:"{{그림자 교리}}의 성물.",tags:["성물"]},
+      {id:"i_sword",name:"여명의 검",cat:"item",desc:"[[검은 제단]]에 봉인된 전설의 성검.",tags:["성검"]},
+      {id:"i_crown",name:"서리 왕관",cat:"item",desc:"[[빙결의 룬]]이 깃든 북부의 보물.",tags:["보물"]},
+      {id:"i_grail",name:"그림자 성배",cat:"item",desc:"[[그림자 교리]]의 성물.",tags:["성물"]},
       {id:"i_map",name:"룬 지도",cat:"item",desc:"봉인의 위치를 담은 고지도.",tags:["단서"]},
       // 개념
       {id:"c_rune",name:"룬 마법",cat:"concept",desc:"고대 문자를 새겨 힘을 발현하는 마법 체계.",tags:["마법체계"]},
@@ -2518,12 +2606,12 @@ function _doLoadDemo(){
       {id:"c_dark",name:"그림자 교리",cat:"concept",desc:"금지된 어둠의 교리.",tags:["종교","금기"]},
     ],
     events:[
-      {id:"v_seal",name:"봉인의 시대",cat:"event",when:"제국력 0년",desc:"{{여명의 검}}이 {{검은 제단}}에 봉인되다.",tags:[]},
+      {id:"v_seal",name:"봉인의 시대",cat:"event",when:"제국력 0년",desc:"[[여명의 검]]이 [[검은 제단]]에 봉인되다.",tags:[]},
       {id:"v_split",name:"대분열",cat:"event",when:"제국력 120년",desc:"북부가 제국에서 떨어져 나가다.",tags:["전쟁"]},
-      {id:"v_coro",name:"세라핀 즉위",cat:"event",when:"제국력 338년",desc:"{{세라핀 여제}}가 {{성도 루멘}}에서 즉위하다.",tags:["궁정"]},
-      {id:"v_battle",name:"서리 관문 전투",cat:"event",when:"제국력 340년",desc:"{{북부 부족 연맹}}이 {{서리 관문}}을 공격한 대전투.",tags:["전쟁"]},
-      {id:"v_journey",name:"카이든의 여정",cat:"event",when:"제국력 342년",desc:"{{카이든}}이 {{여명의 검}}을 찾아 마을을 떠나다.",tags:[]},
-      {id:"v_awaken",name:"그림자의 각성",cat:"event",when:"제국력 342년",desc:"{{모르가나}}가 {{검은 제단}}에서 어둠을 깨우다.",tags:["위기"]},
+      {id:"v_coro",name:"세라핀 즉위",cat:"event",when:"제국력 338년",desc:"[[세라핀 여제]]가 [[성도 루멘]]에서 즉위하다.",tags:["궁정"]},
+      {id:"v_battle",name:"서리 관문 전투",cat:"event",when:"제국력 340년",desc:"[[북부 부족 연맹]]이 [[서리 관문]]을 공격한 대전투.",tags:["전쟁"]},
+      {id:"v_journey",name:"카이든의 여정",cat:"event",when:"제국력 342년",desc:"[[카이든]]이 [[여명의 검]]을 찾아 마을을 떠나다.",tags:[]},
+      {id:"v_awaken",name:"그림자의 각성",cat:"event",when:"제국력 342년",desc:"[[모르가나]]가 [[검은 제단]]에서 어둠을 깨우다.",tags:["위기"]},
     ],
     links:[
       // 주인공 무리
@@ -2618,8 +2706,8 @@ function runConsistencyCheck(){
   const en=curLang()==="en", noName=en?"(no name)":"(무명)";
   items.forEach(i=>{ const n=(i.name||"").trim().toLowerCase(); if(n)(nameMap[n]=nameMap[n]||[]).push(i); });
   Object.values(nameMap).forEach(arr=>{ if(arr.length>1) issues.push({level:"warn",msg:en?`Duplicate name: "${arr[0].name}" (${arr.length})`:`이름 중복: "${arr[0].name}" (${arr.length}개)`,id:arr[0].id}); });
-  items.forEach(i=>{ const desc=findItem(i.id).ref.desc||"", re=/\{\{([^}]+)\}\}/g; let m;
-    while((m=re.exec(desc))){ const n=m[1].trim().toLowerCase(); if(!nameMap[n]) issues.push({level:"warn",msg:en?`Link {{${m[1].trim()}}} in "${i.name||noName}" has no matching item`:`${i.name||noName}의 설명에 없는 링크 {{${m[1].trim()}}}`,id:i.id}); } });
+  items.forEach(i=>{ const desc=findItem(i.id).ref.desc||"", re=/\[\[([^\]]+)\]\]/g; let m;
+    while((m=re.exec(desc))){ const n=m[1].trim().toLowerCase(); if(!nameMap[n]) issues.push({level:"warn",msg:en?`Link [[${m[1].trim()}]] in "${i.name||noName}" has no matching item`:`${i.name||noName}의 설명에 없는 링크 [[${m[1].trim()}]]`,id:i.id}); } });
   const seen=new Set();
   W.links.forEach(l=>{
     if(!ids.has(l.from)||!ids.has(l.to)){ issues.push({level:"warn",msg:en?`Relation points to a nonexistent item`:`존재하지 않는 항목을 가리키는 관계`}); return; }
@@ -2870,7 +2958,8 @@ var I18N_EN = {
   "구멍 꼭짓점은 더블클릭으로 지우며, 링이 3개 미만이 되면 그 구멍이 삭제됩니다.":"Double-click a hole vertex to delete it; a hole is removed when its ring has fewer than 3 points.",
   "시점 (자유 형식: 예 '제국력 342년')":"When (free form, e.g. 'Year 342 IC')",
   "설명":"Description", "클릭하여 설명 입력…":"Click to add a description…", "설정 내용을 입력하세요.":"Enter the lore here.",
-  "{{이름}} 형식으로 입력하면 해당 항목으로 자동 연결됩니다.":"Type {{Name}} to auto-link to that item.",
+  "[[이름]] 형식으로 입력하면 해당 항목으로 자동 연결됩니다.":"Type [[Name]] to auto-link to that item.",
+  "md 미러 폴더":"md mirror folder",
   "태그 (쉼표로 구분)":"Tags (comma-separated)", "＋ 연결":"＋ Link",
   "수동 지정됨":"Manually set", "자동 감지 (포함 영역 없음)":"Auto (no containing area)", "자동으로 되돌리기":"Reset to auto",
   "🔒 위치 잠금 (이동·편집 방지)":"🔒 Lock position (prevent move/edit)", "지도별 마커 표시":"Marker visibility per map",
@@ -2974,6 +3063,9 @@ function openSettingsMenu(){
       `<input class="f" type="number" min="20" max="300" value="${dz}" placeholder="100" style="width:70px;margin:0;text-align:right" onchange="saveDefZoom(this.value)"><span style="color:var(--muted)">%</span>`)}
     ${row(t("툴바 도움말"), `<button class="btn${s.hideMapHint?"":" primary"}" style="padding:4px 14px" onclick="toggleMapHint()">${s.hideMapHint?(en?"Off":"꺼짐"):(en?"On":"켜짐")}</button>`)}
     ${row(t("예시 불러오기 버튼"), `<button class="btn${s.hideDemoBtn?"":" primary"}" style="padding:4px 14px" onclick="toggleDemoBtn()">${s.hideDemoBtn?(en?"Hidden":"숨김"):(en?"Shown":"보임")}</button>`)}
+    ${inTauriApp()?row(t("md 미러 폴더"), mdMirrorDir()
+      ? `<span style="color:var(--muted);font-size:11px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl" title="${esc(mdMirrorDir())}">${esc(mdMirrorDir())}</span><button class="btn" style="padding:4px 10px" onclick="pickMdMirrorDir()">${en?"Change":"변경"}</button><button class="btn" style="padding:4px 10px" onclick="clearMdMirrorDir()">${en?"Off":"해제"}</button>`
+      : `<button class="btn primary" style="padding:4px 14px" onclick="pickMdMirrorDir()">${en?"Set folder":"폴더 지정"}</button>`):""}
     <button class="btn" style="width:100%;margin-top:2px" onclick="openContextSettings()">${t("AI 기능 맥락 조절")}</button>`);
 }
 function openContextSettings(){
@@ -3460,10 +3552,10 @@ function attachImgDrag(){
   });
 }
 
-/* ============ 위키식 상호링크 {{이름}} ============ */
+/* ============ 위키식 상호링크 [[이름]] ============ */
 function renderWiki(text){
   if(!text) return "";
-  const re=/\{\{([^}]+)\}\}/g; let out="", last=0, m;
+  const re=/\[\[([^\]]+)\]\]/g; let out="", last=0, m;
   while((m=re.exec(text))){
     out+=esc(text.slice(last,m.index));
     const name=m[1].trim();
@@ -3476,7 +3568,7 @@ function renderWiki(text){
   out+=esc(text.slice(last));
   return out.replace(/\n/g,"<br>");
 }
-function stripWiki(t){ return (t||"").replace(/\{\{([^}]+)\}\}/g,"$1"); }
+function stripWiki(t){ return (t||"").replace(/\[\[([^\]]+)\]\]/g,"$1"); }
 function updDesc(val){
   const it=findItem(sel.id); if(!it) return;
   it.ref.desc=val; renderLeft(); markDirty();

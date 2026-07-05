@@ -104,6 +104,66 @@ async fn save_html_dialog(default_name: String, contents: String) -> Result<Opti
     }
 }
 
+/// 폴더 선택 창을 띄우고, 고른 폴더 경로를 반환. 취소하면 None. (md 미러 대상 폴더 지정용)
+#[tauri::command]
+async fn pick_folder_dialog() -> Result<Option<String>, String> {
+    let dir = rfd::AsyncFileDialog::new().pick_folder().await;
+    Ok(dir.map(|d| d.path().to_string_lossy().to_string()))
+}
+
+/// 미러 파일 하나: text(텍스트) 또는 base64(바이너리) 중 하나를 담는다.
+#[derive(serde::Deserialize)]
+struct MirrorFile {
+    path: String,
+    text: Option<String>,
+    base64: Option<String>,
+}
+
+/// 지정된 폴더(dir) 아래에 md 미러 트리를 통째로 씀. 앱이 관리하는 하위폴더
+/// (places/entities/events/assets)는 먼저 비워서 이름 변경·삭제로 생긴 고아 파일을 없앤다.
+/// 그 외 사용자가 폴더에 둔 파일은 건드리지 않는다. 경로는 dir 밖(..)으로 못 나가게 검증.
+#[tauri::command]
+async fn write_md_mirror(dir: String, files: Vec<MirrorFile>) -> Result<(), String> {
+    use base64::Engine;
+    use std::path::{Component, Path};
+    let root = std::path::PathBuf::from(&dir);
+    if !root.is_dir() {
+        return Err("mirror folder not found".into());
+    }
+    for sub in ["places", "entities", "events", "assets"] {
+        let p = root.join(sub);
+        if p.is_dir() {
+            let _ = std::fs::remove_dir_all(&p);
+        }
+    }
+    for f in files {
+        let rel = Path::new(&f.path);
+        let unsafe_path = rel.is_absolute()
+            || rel.components().any(|c| {
+                matches!(
+                    c,
+                    Component::ParentDir | Component::RootDir | Component::Prefix(_)
+                )
+            });
+        if unsafe_path {
+            return Err(format!("unsafe path: {}", f.path));
+        }
+        let full = root.join(rel);
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        if let Some(b64) = f.base64 {
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(b64)
+                .map_err(|e| e.to_string())?;
+            std::fs::write(&full, bytes).map_err(|e| e.to_string())?;
+        } else {
+            std::fs::write(&full, f.text.unwrap_or_default()).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 /// 파일 열기 창을 띄우고, 고른 .json 을 읽어 경로+내용을 반환. 취소하면 None.
 #[tauri::command]
 async fn open_world_dialog() -> Result<Option<OpenedFile>, String> {
@@ -132,7 +192,9 @@ fn main() {
             write_world,
             open_world_dialog,
             save_png_dialog,
-            save_html_dialog
+            save_html_dialog,
+            pick_folder_dialog,
+            write_md_mirror
         ])
         .run(tauri::generate_context!())
         .expect("error while running Loreforge");
